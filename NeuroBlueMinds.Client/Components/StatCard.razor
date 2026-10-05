@@ -1,0 +1,14 @@
+<div class="bg-white rounded-[2rem] p-8 flex flex-col items-center justify-center shadow-lg hover:scale-105 transition-transform">
+    <div class="mb-4 @(string.IsNullOrEmpty(ColorClass) ? "text-[#00B4D8]" : ColorClass)">
+        <span class="material-symbols-outlined text-5xl" style="font-variation-settings: 'FILL' 1">@Icon</span>
+    </div>
+    <span class="text-4xl font-black text-[#0066CC] mb-1">@Value</span>
+    <span class="text-slate-500 font-bold text-sm uppercase tracking-wide">@Label</span>
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string ColorClass { get; set; } = "";
+}

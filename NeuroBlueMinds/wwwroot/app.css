@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* En v4, Tailwind escanea automáticamente tus archivos basándose en tus imports y estructura,
+   pero si necesitas ser específico con carpetas de otros proyectos (como el .Client),
+   puedes usar la directiva source: */
+@source "../../NeuroBlueMinds.Client/**/*.razor";
+@source "../../NeuroBlueMinds.Client/**/*.html";
+
+/* También asegúrate de que escanee los componentes del servidor */
+@source "../Components/**/*.razor";
+
+@theme {
+  /* Mapeamos tus colores a nombres de clases de Tailwind */
+  --color-primary: #0066CC;
+  --color-secondary: #00B4D8;
+  --color-brand-blue: #00B4D8;
+  --color-brand-purple: #ce82ff;
+  --color-dark: #3c3c3c;
+
+  /* Nota: 'white' ya existe en TW, pero si quieres asegurar el tuyo: */
+  --color-brand-white: #ffffff;
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Neuro-Adaptive Design System CSS Variables ── */
+/* Default theme — optimized for standard perception */
+:root {
+  --nbm-bg: #F8FAFC;
+  --nbm-surface: #FFFFFF;
+  --nbm-text: #1E293B;
+  --nbm-text-muted: #64748B;
+  --nbm-primary: #1E40AF;
+  --nbm-primary-light: #DBEAFE;
+  --nbm-accent: #7C3AED;
+  --nbm-success: #065F46;
+  --nbm-border: #E2E8F0;
+  --nbm-radius: 1rem;
+  --nbm-font: 'Calibri', 'Segoe UI', sans-serif;
+  --nbm-line-height: 1.6;
+  --nbm-letter-spacing: 0.01em;
+  --nbm-motion: 1;  /* 1 = animations on, 0 = off */
+}
+
+/* High Contrast theme — for visual sensory sensitivities */
+[data-theme="contrast"] {
+  --nbm-bg: #000000;
+  --nbm-surface: #1A1A1A;
+  --nbm-text: #FFFFFF;
+  --nbm-text-muted: #E0E0E0;
+  --nbm-primary: #60A5FA;
+  --nbm-primary-light: #1E3A5F;
+  --nbm-accent: #A78BFA;
+  --nbm-success: #10B981;
+  --nbm-border: #FFFFFF;
+}
+
+/* Warm/Calm theme — for sensory sensitivities, reduced stimulation */
+[data-theme="warm"] {
+  --nbm-bg: #FEFCE8;
+  --nbm-surface: #FFFBEB;
+  --nbm-text: #292524;
+  --nbm-text-muted: #78716C;
+  --nbm-primary: #92400E;
+  --nbm-primary-light: #FEF3C7;
+  --nbm-accent: #B45309;
+  --nbm-success: #7C2D12;
+  --nbm-border: #D6D3D1;
+}
+
+/* Dyslexic font mode — OpenDyslexic for improved reading */
+[data-font="dyslexic"] {
+  --nbm-font: 'OpenDyslexic', sans-serif;
+  --nbm-line-height: 1.9;
+  --nbm-letter-spacing: 0.05em;
+}
+
+/* Reduced motion — respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce), [data-motion="0"] {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Apply theme CSS variables to document elements */
+body {
+  background-color: var(--nbm-bg);
+  color: var(--nbm-text);
+  font-family: var(--nbm-font);
+  line-height: var(--nbm-line-height);
+  letter-spacing: var(--nbm-letter-spacing);
+}
+
+/* Aplicamos al body usando la capa base de Tailwind */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-dark);
+    line-height: 1.6;
+    /* Asegúrate de que no haya márgenes raros */
+    margin: 0;
+    padding: 0;
+  }
+  @keyframes mascot-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.9; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .animate-once {
+    animation: mascot-pulse 0.5s ease-in-out;
+  }
+}
+

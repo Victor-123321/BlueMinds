@@ -1,0 +1,80 @@
+@page "/juegos/visual"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject ClientLocalizationService Loc
+@inject IDashboardService DashboardSvc
+@implements IDisposable
+
+<PageTitle>@Loc.T("games.visual.title") - BlueMinds</PageTitle>
+
+@if (_selectedGame == null)
+{
+    <GameSelector Category="visual"
+        Title="@Loc.T("games.visual.title")"
+        Subtitle="@Loc.T("games.visual.subtitle")"
+        Icon="visibility"
+        Games="_games"
+        OnGameSelected="HandleGameSelected"
+        Recommendations="_recommendations"
+        SessionMessage="_sessionMessage"
+        IsLoading="_loading" />
+}
+else
+{
+    <div class="p-4 bg-slate-50 min-h-screen">
+        <button @onclick="() => _selectedGame = null"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md transition-all mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined">arrow_back</span> @Loc.T("games.back")
+        </button>
+        <GameContainer GameUrl="@_selectedGame.Url" Style="visual" />
+    </div>
+}
+
+@code {
+    private SelectedGame? _selectedGame;
+    private bool _loading = true;
+    private List<NeuroBlueMinds.Shared.DTOs.ActivityRecommendationDto>? _recommendations;
+    private string _sessionMessage = "";
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public void Dispose()                   => Loc.OnLocaleChanged -= StateHasChanged;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var svc = (ClientDashboardService)DashboardSvc;
+            var result = await svc.GetRecommendationsAsync();
+            // Filter to visual style only
+            _recommendations = result.Recommendations
+                .Where(r => r.Style == "visual")
+                .ToList();
+            _sessionMessage = result.SessionMessage ?? "";
+        }
+        catch
+        {
+            _recommendations = new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void HandleGameSelected(GameSelector.GameItem game) =>
+        _selectedGame = new($"/games-static/visual/{game.Path}/index.html");
+
+    private record SelectedGame(string Url);
+
+    private static readonly List<GameSelector.GameItem> _games = new()
+    {
+        new("memory-1",      "Juego de Memoria",        "Repite la secuencia de colores.",                    "ads_click",    "nivel-1/memory-game",           "1"),
+        new("memoriza-1",    "Memoriza y Encuentra",    "Observa la imagen y búscala entre las opciones.",    "image_search", "nivel-1/memoriza-imagen",       "1"),
+        new("detective-1",   "Detective de Errores",    "Encuentra lo que no encaja en la imagen.",           "search",       "nivel-1/detective-errores",     "1"),
+        new("escena-2",      "Completa la Escena",      "Elige la imagen que completa la escena.",            "landscape",    "nivel-2/completa-escena",       "2"),
+        new("historia-2",    "Ordena la Historia",      "Pon las imágenes en orden para contar un cuento.",   "auto_stories", "nivel-2/ordena-historia",       "2"),
+        new("profesiones-2", "Explora Profesiones",     "Aprende sobre trabajos a través de fotos.",          "work",         "nivel-2/explora-profesiones",   "2"),
+        new("asocia-3",      "Asocia la Imagen",        "Relaciona conceptos visuales complejos.",            "compare",      "nivel-3/asocia-imagen",         "3"),
+        new("grupos-3",      "Clasificación de Grupos", "Organiza objetos por categorías visuales.",          "category",     "nivel-3/clasificacion-grupos",  "3"),
+        new("patrones-3",    "Juego de Patrones",       "Adivina qué imagen sigue en la serie.",              "extension",    "nivel-3/patterns-game",         "3"),
+    };
+}

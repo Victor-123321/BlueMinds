@@ -1,0 +1,433 @@
+:root {
+    --primary-blue: #0066CC;
+    --cyan-light: #00B4D8;
+    --cyan-bright: #0099FF;
+    --red-color: #EF4444;
+    --purple-color: #6D28D9;
+    --green-color: #10B981;
+    --light-bg: #F0F9FF;
+    --white: #FFFFFF;
+    --dark-text: #1F2937;
+    --shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+    --border-radius: 16px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Nunito', sans-serif;
+    background: linear-gradient(135deg, #0066CC 0%, #00B4D8 50%, #0099FF 100%);
+    color: var(--dark-text);
+    line-height: 1.6;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+.game-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    box-shadow: var(--shadow);
+}
+
+.back-button button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--dark-text);
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: color 0.3s ease;
+}
+
+.back-button button:hover {
+    color: var(--primary-blue);
+}
+
+.game-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary-blue);
+}
+
+.game-info {
+    font-weight: 600;
+    color: var(--primary-blue);
+}
+
+.game-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.progress-card {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    box-shadow: var(--shadow);
+    border: 4px solid var(--primary-blue);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.progress-bar {
+    height: 12px;
+    background-color: #E5E7EB;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    transition: width 0.5s ease;
+}
+
+.rhythm-card {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 30px;
+    box-shadow: var(--shadow);
+    border: 4px solid var(--primary-blue);
+}
+
+.rhythm-card h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 25px;
+    color: var(--dark-text);
+}
+
+/* Syllable Stage */
+.syllable-stage {
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.05) 0%, rgba(0, 180, 216, 0.05) 100%);
+    border: 3px solid var(--primary-blue);
+    border-radius: 16px;
+    padding: 35px 20px;
+    margin-bottom: 25px;
+    min-height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.syllables-container {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.syllable {
+    padding: 18px 28px;
+    background-color: var(--white);
+    border: 3px solid var(--primary-blue);
+    border-radius: 12px;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--primary-blue);
+    transition: all 0.3s ease;
+    min-width: 75px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.syllable:hover {
+    transform: scale(1.05);
+}
+
+.syllable.active {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    color: white;
+    transform: scale(1.15);
+    box-shadow: 0 8px 20px rgba(0, 102, 204, 0.4);
+}
+
+.syllable.pulse {
+    animation: syllablePulse 0.6s ease;
+}
+
+@keyframes syllablePulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(0, 102, 204, 0.4);
+    }
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 15px rgba(0, 102, 204, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(0, 102, 204, 0);
+    }
+}
+
+/* Tap Area */
+.tap-area {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+    border: 3px dashed var(--green-color);
+    border-radius: 16px;
+    padding: 35px 20px;
+    margin-bottom: 25px;
+    text-align: center;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tap-area:hover {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.1) 100%);
+    border-color: var(--green-color);
+}
+
+.tap-area.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--green-color);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.tap-instruction {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--green-color);
+}
+
+.tap-feedback {
+    font-size: 48px;
+    font-weight: 700;
+    min-height: 55px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tap-feedback.tap-detected {
+    animation: tapPulse 0.5s ease;
+}
+
+@keyframes tapPulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.3);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Feedback */
+.feedback {
+    font-size: 18px;
+    font-weight: 700;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.feedback.correct {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    color: white;
+}
+
+.feedback.incorrect {
+    background-color: var(--red-color);
+    color: white;
+}
+
+/* Controls */
+.action-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.action-button {
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.action-button:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 102, 204, 0.3);
+}
+
+.action-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-button.primary {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    box-shadow: 0 4px 15px rgba(0, 102, 204, 0.3);
+}
+
+/* Speech Section */
+.speech-section {
+    background: rgba(16, 185, 129, 0.1);
+    border: 2px solid var(--green-color);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.speech-section h4 {
+    color: var(--green-color);
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.listen-button {
+    padding: 15px 30px;
+    background: linear-gradient(135deg, var(--green-color) 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 auto;
+    transition: all 0.3s ease;
+}
+
+.listen-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.listen-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.speech-feedback {
+    margin-top: 15px;
+    padding: 12px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.speech-feedback.correct {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--green-color);
+    border: 2px solid var(--green-color);
+}
+
+.speech-feedback.incorrect {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--red-color);
+    border: 2px solid var(--red-color);
+}
+
+/* Instructions */
+.instructions-card {
+    background-color: rgba(0, 102, 204, 0.08);
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    border: 2px solid var(--primary-blue);
+    text-align: center;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+.hidden {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .game-header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+
+    .syllable-stage {
+        padding: 25px 15px;
+    }
+
+    .syllables-container {
+        gap: 10px;
+    }
+
+    .syllable {
+        padding: 14px 20px;
+        font-size: 22px;
+        min-width: 65px;
+    }
+
+    .tap-area {
+        padding: 25px 15px;
+    }
+
+    .tap-instruction {
+        font-size: 18px;
+    }
+
+    .tap-feedback {
+        font-size: 40px;
+    }
+
+    .action-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .action-button {
+        justify-content: center;
+    }
+
+    .rhythm-card {
+        padding: 20px;
+    }
+
+    .rhythm-card h2 {
+        font-size: 24px;
+    }
+}

@@ -1,0 +1,76 @@
+@page "/juegos/lectoescritura"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject ClientLocalizationService Loc
+@inject IDashboardService DashboardSvc
+@implements IDisposable
+
+<PageTitle>@Loc.T("games.lectoescritura.title") - BlueMinds</PageTitle>
+
+@if (_selectedGame == null)
+{
+    <GameSelector Category="lecto-escritor"
+        Title="@Loc.T("games.lectoescritura.title")"
+        Subtitle="@Loc.T("games.lectoescritura.subtitle")"
+        Icon="menu_book"
+        Games="_games"
+        OnGameSelected="HandleGameSelected"
+        Recommendations="_recommendations"
+        SessionMessage="_sessionMessage"
+        IsLoading="_loading" />
+}
+else
+{
+    <div class="p-4 bg-slate-50 min-h-screen">
+        <button @onclick="() => _selectedGame = null"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md transition-all mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined">arrow_back</span> @Loc.T("games.back")
+        </button>
+        <GameContainer GameUrl="@_selectedGame.Url" Style="lectoescritura" />
+    </div>
+}
+
+@code {
+    private SelectedGame? _selectedGame;
+    private bool _loading = true;
+    private List<NeuroBlueMinds.Shared.DTOs.ActivityRecommendationDto>? _recommendations;
+    private string _sessionMessage = "";
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public void Dispose()                   => Loc.OnLocaleChanged -= StateHasChanged;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var svc = (ClientDashboardService)DashboardSvc;
+            var result = await svc.GetRecommendationsAsync();
+            _recommendations = result.Recommendations
+                .Where(r => r.Style == "lectoescritura")
+                .ToList();
+            _sessionMessage = result.SessionMessage ?? "";
+        }
+        catch
+        {
+            _recommendations = new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void HandleGameSelected(GameSelector.GameItem game) =>
+        _selectedGame = new($"/games-static/lecto-escritor/{game.Path}/index.html");
+
+    private record SelectedGame(string Url);
+
+    private static readonly List<GameSelector.GameItem> _games = new()
+    {
+        new("error-1",    "Encuentra el Error",  "Detecta fallas en el texto.",            "search",      "nivel-1/encuentra-error",  "1"),
+        new("lee-1",      "Lee y Asocia",         "Une palabras con su significado.",       "book",        "nivel-1/leeyasocia",        "1"),
+        new("colores-1",  "Oración de Colores",   "Estructura frases visualmente.",         "palette",     "nivel-1/oracion-colores",   "1"),
+        new("completa-2", "Completa la Oración",  "Escribe la palabra que falta.",          "edit",        "nivel-2/completa-oracion",  "2"),
+        new("escribe-2",  "Escribe la Palabra",   "Ortografía y vocabulario.",              "keyboard",    "nivel-2/escribe-palabra",   "2"),
+        new("lee-3",      "Lee y Asocia 2",       "Lectura comprensiva nivel 3.",           "spell_check", "nivel-3/leeyasocia2",       "3"),
+    };
+}

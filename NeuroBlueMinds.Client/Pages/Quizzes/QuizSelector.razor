@@ -1,0 +1,281 @@
+@* NeuroBlueMinds.Client/Pages/Quizzes/QuizSelector.razor
+   
+   LÓGICA AUTOMÁTICA:
+   
+   Si eres NIÑO (role=child, JWT child-scoped activo):
+     - Menor de 12 → directo al Quiz Niños
+     - 12 o más   → directo al Quiz VARK
+   
+   Si eres PADRE (role=parent con childToken activo):
+     - Muestra las 2 opciones: Quiz Niño (para el niño activo) o Quiz de Padres (para ti)
+     - Ambas opciones muestran el nombre del niño activo para que quede claro
+   
+   Si eres PADRE sin niño activo → redirige a /family para seleccionar uno
+   
+   Si eres ESPECIALISTA/ADMIN:
+     - Muestra las 3 opciones (puede hacer cualquier quiz para cualquier paciente)
+   
+   El usuario nunca ve una lista confusa — siempre sabe qué hace cada opción
+   y para quién es. *@
+@page "/quiz"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+@inject ILogger<QuizSelector> Logger
+@implements IDisposable
+
+<PageTitle>@Loc.T("app.name") — Evaluación</PageTitle>
+
+<div class="min-h-screen font-sans"
+     style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0369a1 100%);">
+    <div class="flex flex-col items-center justify-center min-h-screen px-6 py-12">
+
+        @if (isLoading)
+        {
+            <div class="flex flex-col items-center gap-4">
+                <div class="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+            </div>
+        }
+        else
+        {
+            <div class="text-center mb-10">
+                <div class="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mx-auto mb-6 backdrop-blur">
+                    <span class="material-symbols-outlined text-white" style="font-size:2.5rem;">assignment</span>
+                </div>
+                <h1 class="text-white text-4xl font-black mb-3">Evaluación</h1>
+                <p class="text-blue-200 text-lg max-w-md mx-auto">@subtitle</p>
+            </div>
+
+            @* ── NIÑO: se auto-redirige, este bloque solo aparece brevemente ── *@
+            @if (role == "child")
+            {
+                @* Nunca renderiza — se redirige en OnAfterRenderAsync *@
+                <div class="text-white text-center animate-pulse">Cargando tu evaluación...</div>
+            }
+
+            @* ── PADRE con niño activo: 2 opciones claras ── *@
+            else if (role == "parent" && !string.IsNullOrEmpty(activeChildName))
+            {
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; max-width:640px; width:100%;">
+
+                    @* Quiz para el niño *@
+                    <button @onclick="GoToChildQuiz"
+                            class="bg-white rounded-3xl p-8 shadow-2xl cursor-pointer group transition-all hover:scale-105 text-left">
+                        <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 group-hover:rotate-6 transition-transform">
+                            <span class="material-symbols-outlined text-blue-600" style="font-size:1.75rem;">child_care</span>
+                        </div>
+                        <div class="text-xs font-black text-blue-500 uppercase tracking-wider mb-1">Para el niño</div>
+                        <h2 class="font-black text-slate-800 text-lg mb-1">Quiz de @activeChildName</h2>
+                        <p class="text-slate-500 text-sm leading-relaxed mb-4">
+                            Evaluación de estilos de aprendizaje para <strong>@activeChildName</strong>.
+                            @if (activeChildAge >= 12)
+                            {
+                                <span class="text-purple-600 font-bold"> (VARK disponible)</span>
+                            }
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">
+                                @(activeChildAge >= 12 ? "VARK Oficial" : "Quiz BlueMinds")
+                            </span>
+                            @if (activeChildAge > 0)
+                            {
+                                <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">
+                                    @activeChildAge años
+                                </span>
+                            }
+                        </div>
+                        <div class="mt-4 flex items-center text-blue-600 font-bold text-sm">
+                            Comenzar <span class="material-symbols-outlined ml-1" style="font-size:18px;">arrow_forward</span>
+                        </div>
+                    </button>
+
+                    @* Quiz para el padre *@
+                    <button @onclick='() => Nav.NavigateTo("/quiz/padres")'
+                            class="bg-white rounded-3xl p-8 shadow-2xl cursor-pointer group transition-all hover:scale-105 text-left">
+                        <div class="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mb-4 group-hover:rotate-6 transition-transform">
+                            <span class="material-symbols-outlined text-green-600" style="font-size:1.75rem;">family_restroom</span>
+                        </div>
+                        <div class="text-xs font-black text-green-500 uppercase tracking-wider mb-1">Para ti</div>
+                        <h2 class="font-black text-slate-800 text-lg mb-1">Cuestionario de Padres</h2>
+                        <p class="text-slate-500 text-sm leading-relaxed mb-4">
+                            Tus observaciones sobre <strong>@activeChildName</strong> ayudan a BlueBot a generar un análisis más preciso.
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">18 preguntas</span>
+                            <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">10 min</span>
+                        </div>
+                        <div class="mt-4 flex items-center text-green-600 font-bold text-sm">
+                            Comenzar <span class="material-symbols-outlined ml-1" style="font-size:18px;">arrow_forward</span>
+                        </div>
+                    </button>
+                </div>
+
+                @* Cambiar de niño *@
+                <button @onclick='() => Nav.NavigateTo("/family")'
+                        class="mt-6 flex items-center gap-2 text-blue-300/70 hover:text-white font-bold text-sm transition-colors">
+                    <span class="material-symbols-outlined" style="font-size:16px;">swap_horiz</span>
+                    Hacer la evaluación para otro niño
+                </button>
+            }
+
+            @* ── PADRE sin niño seleccionado: pedir que vaya a /family ── *@
+            else if (role == "parent" && string.IsNullOrEmpty(activeChildName))
+            {
+                <div class="bg-white rounded-3xl p-10 max-w-md w-full text-center shadow-2xl">
+                    <div class="text-5xl mb-4">👧</div>
+                    <h2 class="text-2xl font-black text-slate-800 mb-3">¿Para quién es la evaluación?</h2>
+                    <p class="text-slate-500 mb-6">
+                        Primero selecciona el perfil del niño que va a hacer la evaluación.
+                    </p>
+                    <button @onclick='() => Nav.NavigateTo("/family")'
+                            class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all">
+                        Seleccionar niño →
+                    </button>
+                </div>
+            }
+
+            @* ── ESPECIALISTA / ADMIN: acceso completo a las 3 opciones ── *@
+            else if (role is "specialist" or "admin")
+            {
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; max-width:900px; width:100%;">
+
+                    <button @onclick='() => Nav.NavigateTo("/quiz/ninos")'
+                            class="bg-white rounded-3xl p-8 shadow-2xl cursor-pointer group transition-all hover:scale-105 text-left">
+                        <div class="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-5 group-hover:rotate-6 transition-transform">
+                            <span class="material-symbols-outlined text-blue-600" style="font-size:2rem;">child_care</span>
+                        </div>
+                        <h2 class="font-black text-slate-800 text-xl mb-2">Quiz BlueMinds</h2>
+                        <p class="text-slate-500 text-sm leading-relaxed mb-4">Para niños menores de 12 años. Evaluación de estilos de aprendizaje.</p>
+                        <span class="bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">Hasta 12 años</span>
+                        <div class="mt-4 flex items-center text-blue-600 font-bold text-sm">
+                            Iniciar <span class="material-symbols-outlined ml-1" style="font-size:18px;">arrow_forward</span>
+                        </div>
+                    </button>
+
+                    <button @onclick='() => Nav.NavigateTo("/quiz/padres")'
+                            class="bg-white rounded-3xl p-8 shadow-2xl cursor-pointer group transition-all hover:scale-105 text-left">
+                        <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mb-5 group-hover:rotate-6 transition-transform">
+                            <span class="material-symbols-outlined text-green-600" style="font-size:2rem;">family_restroom</span>
+                        </div>
+                        <h2 class="font-black text-slate-800 text-xl mb-2">Cuestionario Padres</h2>
+                        <p class="text-slate-500 text-sm leading-relaxed mb-4">Observaciones del tutor o padre para complementar el análisis.</p>
+                        <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">18 preguntas</span>
+                        <div class="mt-4 flex items-center text-green-600 font-bold text-sm">
+                            Iniciar <span class="material-symbols-outlined ml-1" style="font-size:18px;">arrow_forward</span>
+                        </div>
+                    </button>
+
+                    <button @onclick='() => Nav.NavigateTo("/quiz/vark")'
+                            class="bg-white rounded-3xl p-8 shadow-2xl cursor-pointer group transition-all hover:scale-105 text-left relative">
+                        <div class="absolute top-4 right-4">
+                            <span class="bg-purple-600 text-white text-xs font-black px-2 py-1 rounded-full">12+</span>
+                        </div>
+                        <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-5 group-hover:rotate-6 transition-transform">
+                            <span class="material-symbols-outlined text-purple-600" style="font-size:2rem;">clinical_notes</span>
+                        </div>
+                        <h2 class="font-black text-slate-800 text-xl mb-2">Evaluación VARK</h2>
+                        <p class="text-slate-500 text-sm leading-relaxed mb-4">Evaluación oficial VARK para adolescentes y adultos. Resultado clínico validado.</p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-purple-100 text-purple-700 text-xs font-bold px-3 py-1 rounded-full">Oficial</span>
+                            <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">✓ Validado</span>
+                        </div>
+                        <div class="mt-4 flex items-center text-purple-600 font-bold text-sm">
+                            Iniciar <span class="material-symbols-outlined ml-1" style="font-size:18px;">arrow_forward</span>
+                        </div>
+                    </button>
+                </div>
+            }
+
+            <button @onclick='() => Nav.NavigateTo("/dashboard")'
+                    class="mt-10 flex items-center gap-2 text-blue-200 hover:text-white font-bold transition-colors">
+                <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span>
+                Volver al Dashboard
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private bool   isLoading       = true;
+    private string role            = "child";
+    private string activeChildName = "";
+    private int    activeChildAge  = 0;
+    private string subtitle        = "";
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public    void        Dispose()         => Loc.OnLocaleChanged -= StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            role = auth.User.FindFirst(ClaimTypes.Role)?.Value ?? "child";
+
+            // ── NIÑO: auto-rutear según edad ──────────────────────────────────
+            if (role == "child")
+            {
+                var birthClaim = auth.User.FindFirst("birth")?.Value;
+                var age        = CalculateAge(birthClaim);
+
+                if (age >= 12)
+                    Nav.NavigateTo("/quiz/vark", replace: true);
+                else
+                    Nav.NavigateTo("/quiz/ninos", replace: true);
+                return;
+            }
+
+            // ── PADRE: leer el niño activo del localStorage ───────────────────
+            if (role == "parent")
+            {
+                activeChildName = await JS.InvokeAsync<string?>("localStorage.getItem", "activeChildName") ?? "";
+                var childBirth  = await JS.InvokeAsync<string?>("localStorage.getItem", "activeChildBirth") ?? "";
+                activeChildAge  = CalculateAge(childBirth);
+
+                subtitle = string.IsNullOrEmpty(activeChildName)
+                    ? "Selecciona un niño para comenzar"
+                    : $"Evaluación para {activeChildName}";
+            }
+            else
+            {
+                subtitle = "Selecciona el tipo de evaluación";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[QuizSelector] Error during quiz selector initialization");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Navega al quiz correcto para el niño activo según su edad.
+    /// Padre tapea "Quiz de [nombre]" y lo lleva directamente al quiz correcto.
+    /// </summary>
+    private void GoToChildQuiz()
+    {
+        if (activeChildAge >= 12)
+            Nav.NavigateTo("/quiz/vark");
+        else
+            Nav.NavigateTo("/quiz/ninos");
+    }
+
+    private static int CalculateAge(string? birthDateStr)
+    {
+        if (string.IsNullOrEmpty(birthDateStr)) return 0;
+        if (!DateOnly.TryParse(birthDateStr, out var birth)) return 0;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var age   = today.Year - birth.Year;
+        if (birth > today.AddYears(-age)) age--;
+        return Math.Max(0, age);
+    }
+}

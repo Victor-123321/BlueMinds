@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imitación de Animales - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Sonidos de Animales</h1>
+            <div class="game-info">
+                <span id="score-display">Cargando récord...</span>
+            </div>
+        </header>
+
+        <div class="progress-card">
+            <div class="progress-header">
+                <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                <span id="score" data-i18n-suffix=" puntos">0</span>
+            </div>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="main-card" id="main-card">
+            <h2>Escucha e imita el sonido</h2>
+
+            <div class="difficulty-info">
+                <div id="difficulty-badge" class="difficulty-badge adaptive">Discriminación Auditiva</div>
+                <p class="instruction-text" id="instruction-text">Escucha el sonido del animal y repítelo</p>
+            </div>
+
+            <div class="animal-display" id="animal-display">
+                <div class="animal-name-badge" id="animal-name" data-i18n="loading">Cargando...</div>
+                <div class="animal-image-container">
+                    <img id="animal-image" src="" alt="Animal" class="animal-image">
+                    <div class="mouth-animation" id="mouth-animation" style="display: none;">
+                        <div class="mouth"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="audio-controls">
+                <button id="play-sound-button" class="btn primary">
+                    <i class="fas fa-volume-up"></i> Escuchar Sonido
+                </button>
+                <button id="record-button" class="btn secondary" style="display: none;">
+                    <i class="fas fa-microphone"></i> Grabar mi voz
+                </button>
+            </div>
+
+            <div id="recorded-text" class="recorded-text" style="display: none;">
+                <p>Lo que grabaste:</p>
+                <p id="recorded-text-content"></p>
+            </div>
+
+            <div id="similarity-meter" class="similarity-meter" style="display: none;">
+                <div class="similarity-label">Similitud:</div>
+                <div class="similarity-bar">
+                    <div id="similarity-fill" class="similarity-fill"></div>
+                </div>
+                <div id="similarity-text" class="similarity-text">0%</div>
+            </div>
+
+            <div id="feedback" class="feedback">
+                <div id="feedback-message" class="feedback-message"></div>
+                <div id="feedback-detail" class="feedback-detail"></div>
+                <div class="analysis-box" id="analysis-box"></div>
+            </div>
+        </div>
+
+        <div class="instructions-card">
+            <p>
+                💡 <span style="font-weight: 700;">Tip:</span> Escucha atentamente el sonido del animal y trata de imitarlo. ¡La IA te ayudará si es muy difícil!
+            </p>
+        </div>
+    </div>
+
+    <script src="../../../../api.js"></script>
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

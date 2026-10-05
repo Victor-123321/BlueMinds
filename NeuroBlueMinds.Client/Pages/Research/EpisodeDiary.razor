@@ -1,0 +1,164 @@
+@* Diario parental de episodios del módulo ecológico (Protocolo C&W-NM §7.8, §8.6.4).
+   Durante las 72 h posteriores a V2 la familia anota la hora de inicio, el contexto y la
+   duración de cada episodio de desregulación. Sin texto libre (minimización de datos) y
+   sin BD: se guarda en este dispositivo y se exporta en el formato largo de §9.3.3. *@
+@page "/investigacion/diario"
+@layout ResearchLayout
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "parent,specialist,admin")]
+@using System.Globalization
+@using System.Text
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@using NeuroBlueMinds.Client.Research
+@inject IJSRuntime JS
+
+<PageTitle>Diario de episodios — BlueMinds</PageTitle>
+
+<div class="rs-page">
+    <header class="rs-header">
+        <h1>Diario de episodios</h1>
+        <p class="rs-muted">Anota cada episodio en cuanto puedas. Nadie ve estos datos en tiempo real: se quedan en este teléfono hasta que los envíes al equipo del estudio.</p>
+    </header>
+
+    <section class="rs-card">
+        <div class="rs-form">
+            <label>Código del participante
+                <input @bind="_codigo" @bind:after="Guardar" placeholder="NB-017" maxlength="6" />
+            </label>
+        </div>
+    </section>
+
+    <section class="rs-card">
+        <h2>Nuevo episodio</h2>
+        <div class="rs-form">
+            <label>¿A qué hora empezó?
+                <input type="datetime-local" @bind="_inicio" @bind:format="yyyy-MM-ddTHH:mm" />
+            </label>
+            <label>¿Dónde estaba?
+                <select @bind="_contexto">
+                    @foreach (var c in Contextos)
+                    {
+                        <option value="@c.Clave">@c.Texto</option>
+                    }
+                </select>
+            </label>
+            <label>¿Cuántos minutos duró, aproximadamente?
+                <input type="number" min="1" max="600" @bind="_duracion" />
+            </label>
+        </div>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="rs-error">@_error</p>
+        }
+        <button class="rs-btn" @onclick="Agregar">Guardar episodio</button>
+    </section>
+
+    <section class="rs-card">
+        <h2>Episodios anotados (@_episodios.Count)</h2>
+        @if (_episodios.Count == 0)
+        {
+            <p class="rs-muted">Todavía no hay episodios.</p>
+        }
+        else
+        {
+            <table class="rs-table">
+                <thead><tr><th>Inicio</th><th>Dónde</th><th>Duración</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var e in _episodios.OrderByDescending(e => e.Inicio))
+                    {
+                        <tr>
+                            <td>@e.Inicio.ToLocalTime().ToString("ddd d MMM, HH:mm", Es)</td>
+                            <td>@Contextos.First(c => c.Clave == e.Contexto).Texto</td>
+                            <td>@e.DuracionMin min</td>
+                            <td><button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="() => Quitar(e)">Quitar</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        <div class="rs-actions">
+            <button class="rs-btn" disabled="@(_episodios.Count == 0)" @onclick="Exportar">Descargar para enviar al equipo</button>
+        </div>
+    </section>
+</div>
+
+@code {
+    private record Contexto(string Clave, string Texto);
+    private class Episodio
+    {
+        public DateTime Inicio { get; set; }      // UTC
+        public string Contexto { get; set; } = "";
+        public int DuracionMin { get; set; }
+    }
+    private class Diario
+    {
+        public string Codigo { get; set; } = "";
+        public List<Episodio> Episodios { get; set; } = new();
+    }
+
+    private static readonly Contexto[] Contextos =
+    {
+        new("casa", "En casa"), new("escuela", "En la escuela"), new("traslado", "En un traslado"), new("otro", "En otro lugar"),
+    };
+    private static readonly CultureInfo Es = new("es-MX");
+    private static readonly Regex CodigoNino = new(@"^NB-\d{3}$");
+    private const string Key = "nbm_rs_diario";
+
+    private string _codigo = "";
+    private DateTime _inicio = DateTime.Now;
+    private string _contexto = "casa";
+    private int? _duracion;
+    private string _error = "";
+    private List<Episodio> _episodios = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var raw = await JS.InvokeAsync<string?>("localStorage.getItem", Key);
+        if (!string.IsNullOrEmpty(raw) && JsonSerializer.Deserialize<Diario>(raw) is { } d)
+        {
+            _codigo    = d.Codigo;
+            _episodios = d.Episodios;
+        }
+    }
+
+    private Task Guardar() =>
+        JS.InvokeVoidAsync("localStorage.setItem", Key,
+            JsonSerializer.Serialize(new Diario { Codigo = _codigo.Trim().ToUpperInvariant(), Episodios = _episodios })).AsTask();
+
+    private async Task Agregar()
+    {
+        _error = "";
+        if (!CodigoNino.IsMatch(_codigo.Trim().ToUpperInvariant())) { _error = "Escribe el código que te dio el equipo (por ejemplo NB-017)."; return; }
+        if (_duracion is not > 0)  { _error = "Indica cuántos minutos duró."; return; }
+        if (_inicio > DateTime.Now.AddMinutes(5)) { _error = "La hora de inicio no puede estar en el futuro."; return; }
+
+        _episodios.Add(new Episodio { Inicio = _inicio.ToUniversalTime(), Contexto = _contexto, DuracionMin = _duracion.Value });
+        _duracion = null;
+        _inicio   = DateTime.Now;
+        await Guardar();
+    }
+
+    private async Task Quitar(Episodio e)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "¿Quitar este episodio?")) return;
+        _episodios.Remove(e);
+        await Guardar();
+    }
+
+    // Formato largo de §9.3.3: fuente DIARIO, fase ecologico, bloque = contexto.
+    private async Task Exportar()
+    {
+        var codigo = _codigo.Trim().ToUpperInvariant();
+        var sb = new StringBuilder("nino_id,sesion_id,visita,fase,bloque,timestamp_utc,fuente,indicador,valor,unidad,sqi,flag_calidad,version_firmware,version_pipeline\n");
+        foreach (var e in _episodios.OrderBy(e => e.Inicio))
+        {
+            var ts = e.Inicio.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+            sb.Append($"{codigo},ECO,V2,ecologico,{e.Contexto},{ts},DIARIO,episodio_duracion_min,{e.DuracionMin},min,,0,,{ResearchStore.VersionModulo}\n");
+        }
+        var csv  = sb.ToString();
+        var name = $"{codigo}_ECO_DIARIO";
+        await JS.InvokeVoidAsync("nbmResearch.download", $"{name}.csv", csv, "text/csv");
+        await JS.InvokeVoidAsync("nbmResearch.download", $"{name}.sha256", $"{ResearchStore.Sha256(csv)}  {name}.csv\n", "text/plain");
+    }
+}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Eco de las Palabras - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css";
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">El Eco de las Palabras</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <!-- Progress -->
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                    <span id="score">0 puntos</span>
+                  <div class="high-score-container">
+                      <span>🏆 Récord: </span>
+                      <span id="high-score-text" data-i18n="loading">Cargando...</span>
+                  </div>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Audio Display -->
+            <div class="audio-card" id="audio-card">
+                <h2>Repite la palabra</h2>
+                
+                <div id="difficulty-badge" class="difficulty-badge"></div>
+
+                <div id="image-display" class="image-display">
+                    <img id="current-image" src="" alt="Imagen para asociar">
+                </div>
+                
+                <div class="audio-controls">
+                    <button id="play-button" class="audio-button primary">
+                        <i class="fas fa-volume-up"></i> Escuchar palabra
+                    </button>
+                    <button id="record-button" class="audio-button red">
+                        <i class="fas fa-microphone"></i> Grabar mi voz
+                    </button>
+                </div>
+
+                <div id="recorded-text" class="recorded-text">
+                    <p>Lo que grabaste:</p>
+                    <p id="recorded-text-content"></p>
+                </div>
+                
+                <div id="similarity-meter" class="similarity-meter">
+                    <div class="similarity-label">Similitud:</div>
+                    <div class="similarity-bar">
+                        <div id="similarity-fill" class="similarity-fill"></div>
+                    </div>
+                    <div id="similarity-text" class="similarity-text">0%</div>
+                </div>
+                
+                <div id="feedback" class="feedback">
+                    <span id="feedback-text"></span>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions-card">
+                <p>
+                    💡 <span style="font-weight: 700;">Tip:</span> Escucha atentamente la palabra y trata de repetirla lo más parecido posible.
+                </p>
+            </div>
+        </main>
+    </div>
+    <script src="../../../../api.js"></script>
+<script src="pronunciation-analyzer.js"></script>
+<script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

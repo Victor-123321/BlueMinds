@@ -1,0 +1,55 @@
+@* Fila de botones para registrar una escala numérica (OMNI 0–10, FPS-R 0–10 en pares,
+   agrado 1–5). Muestra el valor elegido; el registro lo hace el padre en OnSelect. *@
+
+<div class="rs-scale">
+    @if (!string.IsNullOrEmpty(Titulo))
+    {
+        <div class="rs-scale-title">@Titulo</div>
+    }
+    <div class="rs-scale-row">
+        @foreach (var o in Opciones)
+        {
+            <button class="rs-scale-btn @(Seleccion == o.Valor ? "is-selected" : "") @(Grande ? "is-big" : "")"
+                    @onclick="() => Elegir(o.Valor)" title="@o.Ayuda">
+                <span class="rs-scale-label">@o.Etiqueta</span>
+                @if (!string.IsNullOrEmpty(o.Ayuda))
+                {
+                    <span class="rs-scale-help">@o.Ayuda</span>
+                }
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    public record Opcion(int Valor, string Etiqueta, string Ayuda = "");
+
+    [Parameter] public string Titulo { get; set; } = "";
+    [Parameter] public IReadOnlyList<Opcion> Opciones { get; set; } = Array.Empty<Opcion>();
+    [Parameter] public int? Seleccion { get; set; }
+    [Parameter] public bool Grande { get; set; }
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    private async Task Elegir(int v)
+    {
+        Seleccion = v;
+        await OnSelect.InvokeAsync(v);
+    }
+
+    // OMNI de cicloergómetro (Robertson et al., 2000): 0 = extremadamente fácil, 10 = extremadamente difícil.
+    public static readonly IReadOnlyList<Opcion> Omni = Enumerable.Range(0, 11)
+        .Select(i => new Opcion(i, i.ToString(), i switch { 0 => "Muy fácil", 10 => "Muy difícil", _ => "" }))
+        .ToList();
+
+    // FPS-R (Hicks et al., 2001): valores 0, 2, 4, 6, 8, 10. Mostrar la tarjeta oficial de caras.
+    public static readonly IReadOnlyList<Opcion> Fpsr = new[] { 0, 2, 4, 6, 8, 10 }
+        .Select(i => new Opcion(i, i.ToString()))
+        .ToList();
+
+    // Escala pictórica de agrado del protocolo (1–5).
+    public static readonly IReadOnlyList<Opcion> Agrado = new[]
+    {
+        new Opcion(1, "😞", "Nada"), new Opcion(2, "🙁", "Poco"), new Opcion(3, "😐", "Más o menos"),
+        new Opcion(4, "🙂", "Me gustó"), new Opcion(5, "😄", "Me gustó mucho"),
+    };
+}

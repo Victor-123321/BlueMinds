@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="google-client-id" content="88404835696-5a92quu3ter0qff5couhl4kk7s0jslqg.apps.googleusercontent.com" />
+    <title>BlueMinds</title>
+    <base href="/" />
+    <link rel="stylesheet" href="tailwind-output.css" />
+    <link rel="stylesheet" href="css/pages.css" />
+    <link rel="stylesheet" href="css/research.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/open-dyslexic-regular.min.css">
+    <HeadOutlet />
+
+    <style>
+        /*
+         * FIX para el flash de 404:
+         * Mientras blazor.web.js carga el WASM, el DOM muestra el contenido SSR.
+         * Ocultamos #blazor-loading-spinner una vez que Blazor toma control.
+         * Mostramos #blazor-loading-spinner hasta que Blazor complete el primer render.
+         */
+        #blazor-loading-spinner {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0369a1 100%);
+            z-index: 9999;
+            transition: opacity 0.3s ease;
+        }
+        #blazor-loading-spinner.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .bl-logo {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            opacity: 0.85;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .bl-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        #blazor-error-ui {
+            display: none;
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 0.9rem 1.25rem;
+            background: #fef3c7;
+            color: #78350f;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 700;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
+        }
+        #blazor-error-ui .reload {
+            background: #1d4ed8;
+            color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 0.75rem;
+            text-decoration: none;
+        }
+        @@keyframes spin  { to { transform: rotate(360deg); } }
+        @@keyframes pulse { 0%,100% { opacity: 0.85; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <!--
+        Este overlay cubre la carga inicial de WASM (Routes no se prerenderiza).
+        Routes.razor lo quita en su primer render llamando a nbmAppReady().
+    -->
+    <div id="blazor-loading-spinner">
+        <img src="android-chrome-512x512.png" class="bl-logo" alt="BlueMinds" />
+        <div class="bl-spinner"></div>
+    </div>
+
+    <Routes />
+
+    @* Blazor muestra este panel ante errores no controlados; el script de abajo
+       también lo muestra si el runtime WASM no logra arrancar. *@
+    <div id="blazor-error-ui">
+        <span>Ocurrió un problema al cargar BlueMinds. Recarga la página para continuar.</span>
+        <a href="" class="reload">Recargar</a>
+    </div>
+
+    <script src="_framework/blazor.web.js" autostart="false"></script>
+
+    <script>
+        (function () {
+            var started = false;
+
+            function hideSpinner() {
+                var spinner = document.getElementById('blazor-loading-spinner');
+                if (!spinner) return;
+                spinner.classList.add('hidden');
+                setTimeout(function () { spinner.remove(); }, 400);
+            }
+
+            // Al recargar o navegar fuera, el navegador aborta las descargas en curso:
+            // eso no es un fallo de red y no debe mostrar la barra de error.
+            var leaving = false;
+            window.addEventListener('pagehide', function () { leaving = true; });
+            window.addEventListener('beforeunload', function () { leaving = true; });
+
+            function showBootError() {
+                if (started || leaving) return;
+                hideSpinner();
+                var errorUi = document.getElementById('blazor-error-ui');
+                if (errorUi) errorUi.style.display = 'flex';
+            }
+
+            // Sin prerender no hay nada debajo del overlay: se queda hasta que Routes
+            // termina su primer render (lo avisa con nbmAppReady) o hasta el error.
+            window.nbmAppReady = function () { started = true; hideSpinner(); };
+
+            if (!window.Blazor) {
+                // blazor.web.js no cargó (404, bloqueo, red caída)
+                showBootError();
+                return;
+            }
+
+            // Un fallo al descargar ensamblados deja la app en "Cargando..." para siempre.
+            window.addEventListener('unhandledrejection', function (e) {
+                var msg = e.reason && (e.reason.message || String(e.reason));
+                if (msg && msg.indexOf("download '") === 0) showBootError();
+            });
+            setTimeout(showBootError, 45000);
+
+            Blazor.start({
+                webAssembly: {
+                    // IIS en producción resetea la conexión HTTP/2 (ERR_HTTP2_PROTOCOL_ERROR)
+                    // cuando el runtime pide ~60 .wasm a la vez (default: 16 en paralelo).
+                    configureRuntime: function (runtime) {
+                        runtime.withConfig({ maxParallelDownloads: 6 });
+                    }
+                }
+            }).catch(showBootError);
+        })();
+    </script>
+
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="js/gameInterop.js"></script>
+    <script src="js/inactivity.js"></script>
+    <script src="js/research.js"></script>
+    <script src="game-i18n.js"></script>
+</body>
+</html>

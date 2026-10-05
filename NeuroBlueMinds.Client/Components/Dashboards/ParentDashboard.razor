@@ -1,0 +1,901 @@
+@* NeuroBlueMinds.Client/Components/Dashboards/ParentDashboard.razor
+   PARENT VIEW — expert-level analytics that any parent can understand.
+   NO game-play buttons (parent isn't the learner).
+
+   SECTIONS:
+   1. Child Selector Header (multi-child support)
+   2. Resumen Ejecutivo Semanal (Weekly summary with trend arrows)
+   3. Progreso VARK a lo largo del tiempo (Radar chart via Chart.js)
+   4. Mapa de Áreas de Dificultad (Color-coded skill breakdown)
+   5. Recomendaciones para Casa (Actionable parent tips)
+   6. Centro de Notificaciones (mini notifications panel)
+*@
+@namespace NeuroBlueMinds.Client.Components.Dashboards
+
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@using Microsoft.Extensions.Logging
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject ClientLocalizationService Loc
+@inject IJSRuntime JS
+@inject ILogger<ParentDashboard> Logger
+@implements IDisposable
+
+<PageTitle>@Loc.T("parent.dashboard.title") - BlueMinds</PageTitle>
+
+@if (isLoading)
+{
+    <div class="min-h-screen bg-gradient-to-br from-blue-700 to-cyan-500 flex items-center justify-center">
+        <div class="text-white text-center">
+            <div class="w-16 h-16 border-8 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="font-black text-xl">@Loc.T("common.loading")</p>
+        </div>
+    </div>
+}
+else
+{
+<div class="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 pb-24">
+
+    @* ── HEADER WITH CHILD SELECTOR ── *@
+    <div class="bg-gradient-to-r from-blue-700 to-cyan-500 pt-8 pb-16 px-6">
+        <div class="max-w-6xl mx-auto">
+            <div class="mb-6">
+                <h1 class="text-white text-3xl font-black">@Loc.T("parent.dashboard.title")</h1>
+                <p class="text-blue-100 mt-1">@Loc.T("common.welcome_back")</p>
+            </div>
+
+            @* ── Child Selector Tabs (SECTION 1) ── *@
+            @if (children.Any())
+            {
+                <div class="flex gap-2 overflow-x-auto pb-2">
+                    @foreach (var child in children)
+                    {
+                        var isActive = child.ChildUserId == activeChildId;
+                        <button @onclick="() => SelectChild(child.ChildUserId, child.Name)"
+                                class="flex items-center gap-2 px-4 py-2 rounded-full font-black whitespace-nowrap transition-all @(isActive
+                                    ? "bg-white text-blue-700 shadow-lg"
+                                    : "bg-white/20 text-white hover:bg-white/30")">
+                            <span class="text-xl">@child.Avatar</span>
+                            <span>@child.Name</span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-6 space-y-6" style="margin-top: -2rem;">
+
+        @* ── SECTION 2: Resumen Ejecutivo Semanal (Weekly Executive Summary) ── *@
+        <div class="space-y-4">
+            <h2 class="text-2xl font-black text-slate-800 flex items-center gap-2">
+                <span class="material-symbols-outlined text-blue-600">trending_up</span>
+                @Loc.T("parent.weekly_summary")
+            </h2>
+
+            <div class="grid grid-cols-3 gap-4">
+                @* Card 1: Sessions this week *@
+                <div class="bg-white rounded-3xl p-6 shadow-lg border-2 border-blue-100">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <p class="text-slate-500 text-sm font-black uppercase tracking-wide">@Loc.T("parent.sessions_this_week")</p>
+                            <p class="text-4xl font-black text-blue-700 mt-2">@weeklySessionCount</p>
+                        </div>
+                        <span class="text-3xl">@GetTrendArrow(weeklyTrend)</span>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                        @if (weeklyTrendLabel != "")
+                        {
+                            <span>@weeklyTrendLabel</span>
+                        }
+                        else
+                        {
+                            <span>Comienza con el primer juego</span>
+                        }
+                    </p>
+                </div>
+
+                @* Card 2: Average Accuracy *@
+                <div class="bg-white rounded-3xl p-6 shadow-lg border-2 @GetAccuracyBorderColor(avgAccuracy)">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <p class="text-slate-500 text-sm font-black uppercase tracking-wide">@Loc.T("parent.average_accuracy")</p>
+                            <p class="text-4xl font-black @GetAccuracyColor(avgAccuracy) mt-2">@avgAccuracy.ToString("F0")%</p>
+                        </div>
+                        <span class="text-3xl">@GetAccuracyEmoji(avgAccuracy)</span>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                        @if (avgAccuracy > 75)
+                        {
+                            <span>Excelente desempeño para su edad 🎯</span>
+                        }
+                        else if (avgAccuracy > 50)
+                        {
+                            <span>Progreso normal, sigue practicando 📈</span>
+                        }
+                        else
+                        {
+                            <span>Necesita más práctica, ¡está bien! 💪</span>
+                        }
+                    </p>
+                </div>
+
+                @* Card 3: Dominant Learning Style *@
+                <div class="bg-white rounded-3xl p-6 shadow-lg border-2 border-purple-100">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <p class="text-slate-500 text-sm font-black uppercase tracking-wide">@Loc.T("parent.dominant_style")</p>
+                            <p class="text-xl font-black text-slate-800 mt-2">
+                                <span class="text-2xl mr-2">@GetStyleEmoji(dominantStyle)</span>
+                                @GetStyleName(dominantStyle)
+                            </p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                        Está aprendiendo mejor con @GetStyleDescription(dominantStyle)
+                    </p>
+                </div>
+            </div>
+
+            @* ── AI Insight Callout ── *@
+            @if (!string.IsNullOrEmpty(profile?.BlueBotSummary))
+            {
+                <div class="bg-gradient-to-r from-blue-50 to-cyan-50 border-l-4 border-blue-500 rounded-xl p-6">
+                    <div class="flex gap-3">
+                        <span class="material-symbols-outlined text-blue-600 shrink-0 text-2xl">psychology</span>
+                        <div>
+                            <p class="text-blue-900 font-black text-sm uppercase tracking-wide mb-1">Análisis de BlueBot</p>
+                            <p class="text-blue-800 italic leading-relaxed text-sm">@profile.BlueBotSummary</p>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* ── Last Activity ── *@
+            <div class="text-sm text-slate-500 text-center">
+                ⏱️ @GetLastActivityText()
+            </div>
+        </div>
+
+        @* ── SECTION 3: Progreso VARK a lo largo del tiempo (VARK Chart) ── *@
+        @if (profile?.StyleBreakdown?.Any() == true)
+        {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-500">radar_chart</span>
+                    @Loc.T("parent.learning_evolution")
+                </h2>
+                <div class="flex justify-center py-4">
+                    <canvas id="varkChart" width="400" height="400"></canvas>
+                </div>
+                <p class="text-xs text-slate-400 text-center mt-4">
+                    La posición más alta en el gráfico indica el estilo donde tu hijo tiene mejor desempeño.
+                </p>
+            </div>
+        }
+
+        @* ── SECTION 4: Mapa de Áreas de Dificultad (Difficulty Map) ── *@
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-orange-500">location_on</span>
+                @Loc.T("parent.areas_attention")
+            </h2>
+
+            @if (HasAnyAccuracyData())
+            {
+                <p class="text-slate-600 text-sm mb-4">
+                    Estas son las áreas donde <strong>@childName</strong> necesita más práctica:
+                </p>
+
+                @if (AllAreasGreen())
+                {
+                    <div class="bg-green-50 rounded-xl p-6 text-center">
+                        <p class="text-2xl mb-2">✅</p>
+                        <p class="text-green-800 font-black">¡Excelente progreso en todas las áreas!</p>
+                        <p class="text-green-700 text-sm mt-1">Tu hijo está dominando todos los estilos de aprendizaje.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="flex flex-wrap gap-3">
+                        @foreach (var style in (profile?.StyleBreakdown ?? new()).OrderBy(s => Math.Max(s.QuizAccuracy, s.GameAccuracy)))
+                        {
+                            var accuracy = Math.Max(style.QuizAccuracy, style.GameAccuracy);
+                            var (color, bgColor, textColor) = GetAccuracyColors(accuracy);
+
+                            <div class="@bgColor @textColor rounded-full px-4 py-2 font-black text-sm flex items-center gap-2">
+                                <span class="text-lg">@GetStyleEmoji(style.Style)</span>
+                                <span>@GetStyleName(style.Style)</span>
+                                <span class="@color font-black">@accuracy.ToString("F0")%</span>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="bg-slate-50 rounded-xl p-6 text-center">
+                    <p class="text-slate-400 text-sm">Completa más juegos para ver el análisis de áreas.</p>
+                </div>
+            }
+        </div>
+
+        @* ── SECTION 5: Recomendaciones para Casa (Home Recommendations) ── *@
+        <div class="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl p-8 shadow-xl text-white">
+            <h2 class="text-2xl font-black mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined">home</span>
+                @Loc.T("parent.recommendations_home")
+            </h2>
+            <div class="grid grid-cols-3 gap-4">
+                @foreach (var rec in GetRecommendations())
+                {
+                    <div class="bg-white/15 rounded-2xl p-4 backdrop-blur">
+                        <p class="text-2xl mb-2">@rec.Icon</p>
+                        <p class="font-black text-indigo-100 text-sm mb-2">@rec.Title</p>
+                        <p class="text-indigo-50 text-xs leading-relaxed">@rec.Description</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ── SECTION 6: Centro de Notificaciones (Notifications) ── *@
+        @if (HasNotifications())
+        {
+            <div class="bg-white rounded-3xl shadow-xl">
+                <button @onclick="ToggleNotifications"
+                        class="w-full px-8 py-6 flex items-center justify-between hover:bg-slate-50 transition-all">
+                    <h2 class="text-2xl font-black text-slate-800 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-blue-500">notifications</span>
+                        @Loc.T("parent.recent_alerts")
+                    </h2>
+                    <span class="material-symbols-outlined text-slate-400 @(showNotifications ? "rotate-180" : "")">
+                        expand_more
+                    </span>
+                </button>
+
+                @if (showNotifications)
+                {
+                    <div class="border-t border-slate-100 px-8 py-4 space-y-3">
+                        @foreach (var notif in GetNotifications())
+                        {
+                            <div class="flex items-start gap-3 pb-3 border-b border-slate-50 last:border-b-0">
+                                <span class="text-xl shrink-0">@notif.Icon</span>
+                                <div>
+                                    <p class="font-black text-slate-800 text-sm">@notif.Title</p>
+                                    <p class="text-slate-500 text-xs">@notif.Message</p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* ── Existing Sections: Strengths, Challenges, Parent Tips, Quiz CTA ── *@
+
+        @* ── BlueBot summary banner (Legacy) ── *@
+        @if (profile?.BlueBotSummary is { Length: > 0 } && false)
+        {
+            <div class="bg-white rounded-3xl shadow-xl"
+                 style="display:flex; align-items:center; gap:1.5rem; padding:1.5rem 2rem;">
+                <span class="material-symbols-outlined text-blue-600 shrink-0" style="font-size:2.5rem;">psychology</span>
+                <div style="flex:1; min-width:0;">
+                    <p class="text-blue-700 font-black text-lg italic leading-snug">
+                        "@profile.BlueBotSummary"
+                    </p>
+                </div>
+            </div>
+        }
+
+        @* ── Style breakdown (Legacy) ── *@
+        @if (profile?.StyleBreakdown?.Any() == true && false)
+        {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-blue-500">bar_chart</span>
+                    @Loc.T("progress.style_breakdown")
+                </h2>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+                    @foreach (var s in profile.StyleBreakdown)
+                    {
+                        var combined = (s.QuizAccuracy + s.GameAccuracy) / 2;
+                        var gradient = GetStyleGradient(s.Style);
+                        <div class="bg-slate-50 rounded-2xl p-5">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="font-black text-slate-700 flex items-center gap-2">
+                                    <span class="text-xl">@GetStyleEmoji(s.Style)</span>
+                                    @GetStyleName(s.Style)
+                                </span>
+                                <span class="text-sm font-black text-slate-500">@((int)combined)%</span>
+                            </div>
+                            <div class="h-3 bg-slate-200 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full @gradient transition-all duration-700"
+                                     style="width:@(Math.Min(combined, 100))%"></div>
+                            </div>
+                            <div class="flex gap-4 text-xs text-slate-400 mt-2">
+                                <span>Quiz: @s.QuizAccuracy.ToString("F0")%</span>
+                                <span>@Loc.T("common.played", s.GamesPlayed)</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── Monthly Roadmap (Legacy) ── *@
+        @if (profile?.Roadmap?.Any() == true)
+        {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-500">map</span>
+                    @Loc.T("parent.roadmap_title", childName)
+                </h2>
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1rem;">
+                    @foreach (var m in profile.Roadmap.OrderBy(r => r.Week))
+                    {
+                        var wc = new[] { "from-blue-500 to-blue-700","from-purple-500 to-purple-700","from-green-500 to-green-700","from-orange-500 to-orange-700" }[(m.Week - 1) % 4];
+                        <div class="rounded-2xl overflow-hidden shadow-lg">
+                            <div class="bg-gradient-to-br @wc p-4 text-white">
+                                <div class="text-xs font-black uppercase tracking-widest opacity-80 mb-1">@Loc.T("roadmap.week", m.Week)</div>
+                                <div class="font-black leading-tight">@m.Title</div>
+                                <div class="text-xs opacity-70 mt-1">@GetStyleEmoji(m.Style) @GetDifficultyLabel(m.Difficulty)</div>
+                            </div>
+                            <div class="bg-white p-3">
+                                <p class="text-slate-600 text-xs leading-relaxed">@m.Description</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── Strengths + Challenges (Legacy) ── *@
+        @if (profile?.Strengths?.Any() == true || profile?.Challenges?.Any() == true)
+        {
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+                @if (profile?.Strengths?.Any() == true)
+                {
+                    <div class="bg-white rounded-3xl p-6 shadow-xl">
+                        <h3 class="font-black text-green-800 mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-green-500">stars</span> @Loc.T("analysis.strengths")
+                        </h3>
+                        <ul class="space-y-2">
+                            @foreach (var str in profile.Strengths)
+                            {
+                                <li class="flex items-start gap-2 text-green-700 text-sm">
+                                    <span class="material-symbols-outlined text-green-400 mt-0.5" style="font-size:16px">check_circle</span>
+                                    @str
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+                @if (profile?.Challenges?.Any() == true)
+                {
+                    <div class="bg-white rounded-3xl p-6 shadow-xl">
+                        <h3 class="font-black text-orange-800 mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-orange-400">target</span> @Loc.T("analysis.challenges")
+                        </h3>
+                        <ul class="space-y-2">
+                            @foreach (var ch in profile.Challenges)
+                            {
+                                <li class="flex items-start gap-2 text-orange-700 text-sm">
+                                    <span class="material-symbols-outlined text-orange-400 mt-0.5" style="font-size:16px">arrow_circle_right</span>
+                                    @ch
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        }
+
+        @* ── Parent Tips (Legacy) ── *@
+        @if (profile?.ParentTips?.Any() == true && false)
+        {
+            <div class="bg-gradient-to-br from-blue-700 to-blue-900 rounded-3xl p-8 shadow-xl text-white">
+                <h2 class="text-2xl font-black mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined">family_restroom</span>
+                    @Loc.T("progress.parent_tips")
+                </h2>
+                <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1rem;">
+                    @foreach (var tip in profile.ParentTips)
+                    {
+                        <div class="bg-white/15 rounded-2xl p-4 backdrop-blur">
+                            <span class="material-symbols-outlined text-blue-200 mb-2 block">lightbulb</span>
+                            <p class="text-blue-50 text-sm leading-relaxed">@tip</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── SECTION 7: Antes vs. Ahora (Before / After Progress Comparison) ── *@
+        @if (profile != null && _historicalProfile != null)
+        {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-2xl font-black text-slate-800 mb-2 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-indigo-500">compare_arrows</span>
+                    Antes vs. Ahora
+                </h2>
+                <p class="text-slate-500 text-sm mb-6">
+                    Comparación del progreso de <strong>@childName</strong> en las últimas 4 semanas.
+                </p>
+                <div class="grid grid-cols-2 gap-4">
+                    @foreach (var current in (profile.StyleBreakdown ?? new()))
+                    {
+                        var prev = _historicalProfile.StyleBreakdown?.FirstOrDefault(s => s.Style == current.Style);
+                        var currentVal = (int)Math.Round(Math.Max(current.QuizAccuracy, current.GameAccuracy));
+                        var prevVal    = prev != null ? (int)Math.Round(Math.Max(prev.QuizAccuracy, prev.GameAccuracy)) : 0;
+                        var delta      = currentVal - prevVal;
+                        var deltaColor = delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-500" : "text-slate-400";
+                        var deltaSign  = delta > 0 ? "+" : "";
+                        var barColor   = delta > 0 ? "bg-emerald-400" : delta < 0 ? "bg-red-400" : "bg-slate-300";
+
+                        <div class="bg-slate-50 rounded-2xl p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="font-black text-slate-700 text-sm capitalize">
+                                    @GetStyleEmoji(current.Style) @current.Style
+                                </span>
+                                <span class="@deltaColor font-black text-sm">
+                                    @deltaSign@delta%
+                                    @if (delta > 0) { <span>↗</span> }
+                                    else if (delta < 0) { <span>↘</span> }
+                                    else { <span>→</span> }
+                                </span>
+                            </div>
+                            @* Before bar *@
+                            <div class="mb-2">
+                                <div class="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
+                                    <span>Antes</span><span>@prevVal%</span>
+                                </div>
+                                <div class="bg-slate-200 rounded-full h-2">
+                                    <div class="bg-slate-400 rounded-full h-2 transition-all duration-700"
+                                         style="width: @prevVal%"></div>
+                                </div>
+                            </div>
+                            @* After bar *@
+                            <div>
+                                <div class="flex justify-between text-[10px] text-slate-600 font-bold mb-1">
+                                    <span>Ahora</span><span>@currentVal%</span>
+                                </div>
+                                <div class="bg-slate-200 rounded-full h-2">
+                                    <div class="@barColor rounded-full h-2 transition-all duration-700"
+                                         style="width: @currentVal%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── SECTION 8: Compartir con Especialista ───────────────────────────── *@
+        @if (_activeChildId > 0)
+        {
+            <div class="bg-gradient-to-r from-teal-500 to-emerald-600 rounded-3xl p-6 shadow-xl text-white flex items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-black text-lg">Comparte el progreso</h3>
+                    <p class="text-teal-100 text-sm mt-1">
+                        Genera un enlace PDF para enviar al especialista de @childName.
+                    </p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button @onclick="GenerateShareLink"
+                            class="bg-white text-teal-700 font-black px-5 py-3 rounded-2xl hover:bg-teal-50 transition-all text-sm shadow-md">
+                        📄 Generar PDF
+                    </button>
+                    @if (!string.IsNullOrEmpty(_shareLink))
+                    {
+                        <button @onclick="CopyShareLink"
+                                class="bg-teal-700 text-white font-black px-4 py-3 rounded-2xl hover:bg-teal-800 transition-all text-sm">
+                            @(_linkCopied ? "✓ Copiado" : "📋 Copiar")
+                        </button>
+                    }
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_shareLink))
+            {
+                <div class="bg-teal-50 border-2 border-teal-200 rounded-2xl px-4 py-3 text-teal-800 text-sm font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-teal-500 text-base">link</span>
+                    <span class="truncate">@_shareLink</span>
+                </div>
+            }
+        }
+
+        @* ── Parent Quiz CTA ── *@
+        <div class="bg-white rounded-3xl p-8 shadow-xl flex items-center justify-between">
+            <div>
+                <h3 class="text-xl font-black text-slate-800">@Loc.T("parent.parent_quiz")</h3>
+                <p class="text-slate-500 text-sm mt-1">
+                    @(parentQuizDone ? Loc.T("parent.quiz_done") : Loc.T("parent.complete_quiz"))
+                </p>
+            </div>
+            @if (!parentQuizDone)
+            {
+                <button @onclick='() => Nav.NavigateTo("/quiz-padres")'
+                        class="bg-blue-600 text-white font-black px-6 py-3 rounded-2xl hover:bg-blue-700 transition-all">
+                    @Loc.T("parent.complete_quiz")
+                </button>
+            }
+            else
+            {
+                <span class="material-symbols-outlined text-green-500 text-4xl">check_circle</span>
+            }
+        </div>
+
+    </div>
+</div>
+}
+
+@code {
+    private bool isLoading = true;
+    private string childName = "";
+    private int activeChildId = 0;
+    private int _activeChildId = 0;   // alias used in new sections
+    private NeuroprofileAnalysisDto? profile;
+    private NeuroprofileAnalysisDto? _historicalProfile;  // 4-week-ago snapshot
+    private List<ChildProfileDto> children = new();
+
+    // Share with specialist
+    private string _shareLink = "";
+    private bool   _linkCopied = false;
+    private double avgAccuracy = 0;
+    private int weeklySessionCount = 0;
+    private string weeklyTrend = "stable";
+    private string weeklyTrendLabel = "";
+    private string dominantStyle = "visual";
+    private string parentName = "Padre";
+    private bool parentQuizDone = false;
+    private bool showNotifications = false;
+
+    private class Recommendation
+    {
+        public string Icon { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+
+    private class Notification
+    {
+        public string Icon { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Message { get; set; } = "";
+    }
+
+    protected override void OnInitialized()
+        => Loc.OnLocaleChanged += StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            // Load Chart.js and vark-chart.js scripts
+            await JS.InvokeVoidAsync("eval", "if(typeof Chart==='undefined'){const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';s.async=true;document.head.appendChild(s);}");
+
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            parentName = auth.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Padre";
+
+            var activeChildIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "activeChildId");
+            childName = await JS.InvokeAsync<string>("localStorage.getItem", "activeChildName") ?? "tu hijo";
+
+            if (!int.TryParse(activeChildIdStr, out var userId))
+            {
+                Nav.NavigateTo("/family");
+                return;
+            }
+
+            activeChildId = userId;
+            _activeChildId = userId;
+
+            var childrenResponse = await Http.GetFromJsonAsync<List<ChildProfileDto>>("api/family/children");
+            children = childrenResponse ?? new();
+
+            await LoadChildData(userId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load parent dashboard data");
+        }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task SelectChild(int userId, string name)
+    {
+        activeChildId = userId;
+        _activeChildId = userId;
+        childName = name;
+        await JS.InvokeVoidAsync("localStorage.setItem", "activeChildId", userId.ToString());
+        await JS.InvokeVoidAsync("localStorage.setItem", "activeChildName", name);
+        await LoadChildData(userId);
+        StateHasChanged();
+    }
+
+    private async Task LoadChildData(int userId)
+    {
+        try
+        {
+            var t1 = Http.GetFromJsonAsync<NeuroprofileAnalysisDto>($"api/dashboard/roadmap/{userId}/{Uri.EscapeDataString(childName)}");
+            var t2 = Http.GetFromJsonAsync<UserSummaryDTO>($"api/dashboard/summary/{userId}");
+            var t3 = Http.GetFromJsonAsync<List<SessionHistory>>($"api/dashboard/history/{userId}");
+
+            await Task.WhenAll(t1, t2, t3);
+            profile = await t1;
+            var summary = await t2;
+            var history = await t3;
+
+            if (summary != null)
+            {
+                avgAccuracy = summary.AvgAccuracy;
+            }
+
+            if (profile != null)
+            {
+                dominantStyle = profile.DominantStyle ?? "visual";
+                parentQuizDone = profile.ParentProfile?.ParentQuizCompleted ?? false;
+            }
+
+            if (history != null && history.Any())
+            {
+                var thisWeek = history.Where(h => h.CreatedAt >= DateTime.UtcNow.AddDays(-7)).ToList();
+                weeklySessionCount = thisWeek.Count;
+
+                if (thisWeek.Count > 0)
+                {
+                    var lastWeek = history.Where(h =>
+                        h.CreatedAt >= DateTime.UtcNow.AddDays(-14) &&
+                        h.CreatedAt < DateTime.UtcNow.AddDays(-7)).Count();
+
+                    if (lastWeek > 0)
+                    {
+                        weeklyTrend = weeklySessionCount > lastWeek ? "improving" : (weeklySessionCount < lastWeek ? "declining" : "stable");
+                        weeklyTrendLabel = weeklySessionCount > lastWeek
+                            ? $"↑ {weeklySessionCount - lastWeek} más que la semana pasada"
+                            : (weeklySessionCount < lastWeek
+                                ? $"↓ {lastWeek - weeklySessionCount} menos que la semana pasada"
+                                : "Igual que la semana pasada");
+                    }
+                    else if (weeklySessionCount > 0)
+                    {
+                        weeklyTrend = "improving";
+                        weeklyTrendLabel = "Primera semana activa, ¡buen comienzo!";
+                    }
+                }
+            }
+
+            await RenderVarkChart();
+
+            // Load 4-week-ago snapshot for Before/After comparison (best-effort)
+            try
+            {
+                _historicalProfile = await Http.GetFromJsonAsync<NeuroprofileAnalysisDto>(
+                    $"api/dashboard/roadmap/{userId}/{Uri.EscapeDataString(childName)}?weeks=4");
+            }
+            catch { _historicalProfile = null; }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load child data for user {UserId}", userId);
+        }
+    }
+
+    // ── Share with specialist ─────────────────────────────────────────────────
+    private async Task GenerateShareLink()
+    {
+        try
+        {
+            var baseUrl = Nav.BaseUri.TrimEnd('/');
+            _shareLink  = $"{baseUrl}/api/reports/child/{_activeChildId}/pdf";
+            _linkCopied = false;
+            StateHasChanged();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "[ParentDashboard] GenerateShareLink error."); }
+    }
+
+    private async Task CopyShareLink()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _shareLink);
+            _linkCopied = true;
+            StateHasChanged();
+            await Task.Delay(2500);
+            _linkCopied = false;
+            StateHasChanged();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "[ParentDashboard] CopyShareLink error."); }
+    }
+
+    private async Task RenderVarkChart()
+    {
+        if (profile?.StyleBreakdown?.Any() != true) return;
+
+        var visual = profile.StyleBreakdown.FirstOrDefault(s => s.Style?.ToLower().Contains("visual") == true)?.GameAccuracy ?? 0;
+        var auditivo = profile.StyleBreakdown.FirstOrDefault(s => s.Style?.ToLower().Contains("audit") == true)?.GameAccuracy ?? 0;
+        var lectoescritura = profile.StyleBreakdown.FirstOrDefault(s => s.Style?.ToLower().Contains("lecto") == true)?.GameAccuracy ?? 0;
+        var kinestesico = profile.StyleBreakdown.FirstOrDefault(s => s.Style?.ToLower().Contains("kine") == true)?.GameAccuracy ?? 0;
+
+        try
+        {
+            // Retry if Chart.js isn't loaded yet
+            int retries = 0;
+            while (retries < 10)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("initVarkChart", "varkChart", visual, auditivo, lectoescritura, kinestesico);
+                    return;
+                }
+                catch
+                {
+                    retries++;
+                    if (retries >= 10) throw;
+                    await Task.Delay(500);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to render VARK chart");
+        }
+    }
+
+    private bool HasAnyAccuracyData()
+        => profile?.StyleBreakdown?.Any(s => Math.Max(s.QuizAccuracy, s.GameAccuracy) > 0) == true;
+
+    private bool AllAreasGreen()
+        => profile?.StyleBreakdown?.All(s => Math.Max(s.QuizAccuracy, s.GameAccuracy) > 75) == true;
+
+    private bool HasNotifications()
+        => profile?.ParentProfile?.KeyObservations?.Any() == true;
+
+    private (string color, string bgColor, string textColor) GetAccuracyColors(double accuracy)
+    {
+        if (accuracy > 75)
+            return ("text-green-600", "bg-green-100", "text-green-800");
+        else if (accuracy > 50)
+            return ("text-amber-600", "bg-amber-100", "text-amber-800");
+        else
+            return ("text-red-600", "bg-red-100", "text-red-800");
+    }
+
+    private string GetAccuracyColor(double accuracy)
+        => accuracy > 75 ? "text-green-600" : (accuracy > 50 ? "text-amber-600" : "text-red-600");
+
+    private string GetAccuracyBorderColor(double accuracy)
+        => accuracy > 75 ? "border-green-100" : (accuracy > 50 ? "border-amber-100" : "border-red-100");
+
+    private string GetAccuracyEmoji(double accuracy)
+        => accuracy > 75 ? "🎯" : (accuracy > 50 ? "📈" : "💪");
+
+    private string GetTrendArrow(string trend)
+        => trend == "improving" ? "↑" : (trend == "declining" ? "↓" : "→");
+
+    private string GetLastActivityText()
+    {
+        if (profile?.LongitudinalTrend?.Any() != true)
+            return "Sin actividad aún";
+
+        var lastActivity = profile.LongitudinalTrend.OrderByDescending(t => t.Date).FirstOrDefault();
+        if (lastActivity == null) return "Sin actividad aún";
+
+        var daysAgo = (DateTime.UtcNow - lastActivity.Date).TotalDays;
+        if (daysAgo < 1) return "Actividad hace menos de una hora";
+        else if (daysAgo < 7) return $"Última actividad hace {(int)daysAgo} día(s)";
+        else return $"Última actividad hace {(int)(daysAgo / 7)} semana(s)";
+    }
+
+    private List<Recommendation> GetRecommendations()
+    {
+        var recs = new List<Recommendation>();
+
+        if (string.IsNullOrEmpty(dominantStyle)) dominantStyle = "visual";
+
+        recs.Add(new Recommendation
+        {
+            Icon = dominantStyle.ToLower().Contains("visual") ? "👁️" :
+                   dominantStyle.ToLower().Contains("audit") ? "👂" :
+                   dominantStyle.ToLower().Contains("kine") ? "✋" : "📖",
+            Title = "Refuerza el estilo dominante",
+            Description = $"Enfócate en actividades {GetStyleDescription(dominantStyle)} — es donde tu hijo aprende más rápido."
+        });
+
+        var weakestStyle = profile?.StyleBreakdown?.OrderBy(s => Math.Max(s.QuizAccuracy, s.GameAccuracy)).FirstOrDefault();
+        if (weakestStyle != null)
+        {
+            recs.Add(new Recommendation
+            {
+                Icon = GetStyleEmoji(weakestStyle.Style),
+                Title = $"Trabaja en {GetStyleName(weakestStyle.Style)}",
+                Description = $"Tu hijo necesita más práctica en {GetStyleName(weakestStyle.Style)}. Dedica 10-15 min diarios."
+            });
+        }
+
+        recs.Add(new Recommendation
+        {
+            Icon = "⏱️",
+            Title = "Sesiones cortas y frecuentes",
+            Description = "Mejor 3 sesiones de 10 minutos que 1 de 30. Los niños aprenden mejor en bloques cortos."
+        });
+
+        return recs;
+    }
+
+    private List<Notification> GetNotifications()
+    {
+        var notifs = new List<Notification>();
+
+        if (profile?.ParentProfile?.KeyObservations?.Any() == true)
+        {
+            foreach (var obs in profile.ParentProfile.KeyObservations.Take(3))
+            {
+                notifs.Add(new Notification
+                {
+                    Icon = "💡",
+                    Title = "Nueva observación",
+                    Message = obs
+                });
+            }
+        }
+
+        if (profile?.GameStats?.Any(g => g.Trend == "improving") == true)
+        {
+            notifs.Add(new Notification
+            {
+                Icon = "🏆",
+                Title = "Progreso detectado",
+                Message = "Tu hijo está mejorando en algunos juegos"
+            });
+        }
+
+        return notifs;
+    }
+
+    private void ToggleNotifications()
+        => showNotifications = !showNotifications;
+
+    private string GetStyleEmoji(string? s) => s?.ToLower() switch
+    {
+        var x when x?.Contains("audit") == true => "👂",
+        var x when x?.Contains("kine") == true => "✋",
+        var x when x?.Contains("lecto") == true => "📖",
+        _ => "👁️"
+    };
+
+    private string GetStyleName(string? s) => s?.ToLower() switch
+    {
+        var x when x?.Contains("audit") == true => "Auditivo",
+        var x when x?.Contains("kine") == true => "Kinestésico",
+        var x when x?.Contains("lecto") == true => "Lectoescritura",
+        _ => "Visual"
+    };
+
+    private string GetStyleDescription(string? s) => s?.ToLower() switch
+    {
+        var x when x?.Contains("audit") == true => "con sonidos, canciones y palabras habladas",
+        var x when x?.Contains("kine") == true => "con movimiento y objetos físicos",
+        var x when x?.Contains("lecto") == true => "con lectura y escritura",
+        _ => "con imágenes y diagramas"
+    };
+
+    private string GetStyleGradient(string? s) => s?.ToLower() switch
+    {
+        var x when x?.Contains("audit") == true => "bg-gradient-to-r from-green-400 to-green-600",
+        var x when x?.Contains("kine") == true => "bg-gradient-to-r from-orange-400 to-orange-600",
+        var x when x?.Contains("lecto") == true => "bg-gradient-to-r from-purple-400 to-purple-600",
+        _ => "bg-gradient-to-r from-blue-400 to-blue-600"
+    };
+
+    private string GetDifficultyLabel(string? d) => d switch
+    {
+        "easy" => Loc.T("roadmap.difficulty.easy"),
+        "hard" => Loc.T("roadmap.difficulty.hard"),
+        _ => Loc.T("roadmap.difficulty.medium")
+    };
+
+    public void Dispose()
+        => Loc.OnLocaleChanged -= StateHasChanged;
+}

@@ -1,0 +1,545 @@
+:root {
+    --primary-blue: #0066CC;
+    --cyan-light: #00B4D8;
+    --cyan-bright: #0099FF;
+    --red-color: #EF4444;
+    --purple-color: #6D28D9;
+    --green-color: #10B981;
+    --light-bg: #F0F9FF;
+    --white: #FFFFFF;
+    --dark-text: #1F2937;
+    --shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+    --border-radius: 16px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Nunito', sans-serif;
+    background: linear-gradient(135deg, #0066CC 0%, #00B4D8 50%, #0099FF 100%);
+    color: var(--dark-text);
+    line-height: 1.6;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+.game-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    box-shadow: var(--shadow);
+}
+
+.back-button button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--dark-text);
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: color 0.3s ease;
+}
+
+.back-button button:hover {
+    color: var(--primary-blue);
+}
+
+.game-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary-blue);
+}
+
+.game-info {
+    font-weight: 600;
+    color: var(--primary-blue);
+}
+
+.game-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.progress-card {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    box-shadow: var(--shadow);
+    border: 4px solid var(--primary-blue);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.progress-bar {
+    height: 12px;
+    background-color: #E5E7EB;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    transition: width 0.5s ease;
+}
+
+.movement-card {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 30px;
+    box-shadow: var(--shadow);
+    border: 4px solid var(--primary-blue);
+}
+
+.movement-card h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 25px;
+    color: var(--dark-text);
+}
+
+/* Leader Section */
+.leader-section {
+    background: rgba(0, 102, 204, 0.05);
+    border: 2px dashed var(--primary-blue);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+.section-label {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-blue);
+    margin-bottom: 15px;
+}
+
+.avatar-container {
+    height: 280px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.avatar {
+    position: relative;
+    width: 100px;
+    height: 200px;
+    transition: all 0.5s ease;
+}
+
+.avatar.leader {
+    filter: drop-shadow(0 4px 8px rgba(0, 102, 204, 0.3));
+}
+
+.avatar-head {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    border-radius: 50%;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    box-shadow: inset -2px -2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-body {
+    position: relative;
+    width: 80px;
+    height: 100px;
+    background: linear-gradient(135deg, var(--cyan-light) 0%, #0088bb 100%);
+    border-radius: 20px;
+    margin: 50px auto 0;
+    box-shadow: inset -2px -2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-arm {
+    position: absolute;
+    width: 15px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--cyan-bright) 0%, #0088bb 100%);
+    border-radius: 10px;
+    top: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-arm-left {
+    left: -15px;
+    transform-origin: top center;
+    transition: transform 0.5s ease;
+}
+
+.avatar-arm-right {
+    right: -15px;
+    transform-origin: top center;
+    transition: transform 0.5s ease;
+}
+
+.avatar-leg {
+    position: absolute;
+    width: 20px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--cyan-bright) 0%, #0088bb 100%);
+    border-radius: 10px;
+    bottom: -50px;
+    transition: transform 0.5s ease;
+}
+
+.avatar-leg-left {
+    left: 15px;
+}
+
+.avatar-leg-right {
+    right: 15px;
+}
+
+/* Animaciones de movimiento */
+.avatar.raise-arms .avatar-arm-left {
+    animation: raiseArmLeft 1.5s ease forwards;
+}
+
+.avatar.raise-arms .avatar-arm-right {
+    animation: raiseArmRight 1.5s ease forwards;
+}
+
+@keyframes raiseArmLeft {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-140deg); }
+}
+
+@keyframes raiseArmRight {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(140deg); }
+}
+
+.avatar.lower-arms .avatar-arm-left {
+    animation: lowerArmLeft 1.5s ease forwards;
+}
+
+.avatar.lower-arms .avatar-arm-right {
+    animation: lowerArmRight 1.5s ease forwards;
+}
+
+@keyframes lowerArmLeft {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(45deg); }
+}
+
+@keyframes lowerArmRight {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-45deg); }
+}
+
+.avatar.jump {
+    animation: jump 1.5s ease infinite;
+}
+
+@keyframes jump {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-60px); }
+}
+
+.avatar.turn-right {
+    animation: turnRight 1.5s ease forwards;
+}
+
+@keyframes turnRight {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(90deg); }
+}
+
+.avatar.celebrate {
+    animation: celebrateJump 1.5s ease infinite;
+}
+
+.avatar.celebrate .avatar-arm-left {
+    animation: celebrateArmLeft 1.5s ease infinite !important;
+}
+
+.avatar.celebrate .avatar-arm-right {
+    animation: celebrateArmRight 1.5s ease infinite !important;
+}
+
+@keyframes celebrateJump {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-30px); }
+}
+
+@keyframes celebrateArmLeft {
+    0%, 100% { transform: rotate(-120deg); }
+    50% { transform: rotate(-160deg); }
+}
+
+@keyframes celebrateArmRight {
+    0%, 100% { transform: rotate(120deg); }
+    50% { transform: rotate(160deg); }
+}
+
+.instruction-text {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary-blue);
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Controls */
+.action-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.action-button {
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.action-button:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 102, 204, 0.3);
+}
+
+.action-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-button.primary {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    box-shadow: 0 4px 15px rgba(0, 102, 204, 0.3);
+}
+
+.action-button.blue {
+    background: linear-gradient(135deg, var(--cyan-light) 0%, var(--green-color) 100%);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+/* Camera Analysis Section */
+.camera-analysis-section {
+    background: rgba(0, 102, 204, 0.03);
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.camera-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.camera-btn {
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.camera-btn.start {
+    background: linear-gradient(135deg, var(--green-color) 0%, #059669 100%);
+    color: white;
+}
+
+.camera-btn.start:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.camera-btn.stop {
+    background: var(--red-color);
+    color: white;
+}
+
+.camera-btn.stop:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.camera-container {
+    width: 100%;
+    max-width: 350px;
+    margin: 0 auto 15px;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.camera-feed {
+    width: 100%;
+    height: 250px;
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+}
+
+video#cameraFeed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Simple Analysis */
+.simple-analysis {
+    background: var(--light-bg);
+    border-radius: 8px;
+    padding: 15px;
+    border-left: 4px solid var(--green-color);
+}
+
+.simple-analysis h4 {
+    color: var(--primary-blue);
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.analysis-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.analysis-label {
+    font-weight: 600;
+    color: var(--dark-text);
+    font-size: 14px;
+}
+
+.analysis-value {
+    color: var(--primary-blue);
+    font-weight: 700;
+    font-size: 14px;
+}
+
+/* Feedback */
+.feedback {
+    font-size: 18px;
+    font-weight: 700;
+    padding: 15px;
+    border-radius: 12px;
+}
+
+.feedback.correct {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+    color: white;
+}
+
+.feedback.incorrect {
+    background-color: var(--red-color);
+    color: white;
+}
+
+/* Instructions */
+.instructions-card {
+    background-color: rgba(0, 102, 204, 0.08);
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    border: 2px solid var(--primary-blue);
+    text-align: center;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+.hidden {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .game-header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+
+    .avatar-container {
+        height: 230px;
+    }
+
+    .avatar {
+        width: 80px;
+        height: 160px;
+    }
+
+    .avatar-head {
+        width: 50px;
+        height: 50px;
+    }
+
+    .avatar-body {
+        width: 60px;
+        height: 80px;
+    }
+
+    .action-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .action-button {
+        justify-content: center;
+    }
+
+    .camera-container {
+        max-width: 100%;
+    }
+
+    .movement-card {
+        padding: 20px;
+    }
+
+    .movement-card h2 {
+        font-size: 24px;
+    }
+}

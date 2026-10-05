@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Cadena de Palabras - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">La Cadena de Palabras</h1>
+            <div class="game-info">
+              <div class="score-container"style="display: flex; flex-direction: column; align-items: flex-end;">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+              </div>
+            </div>
+        </header>
+
+        <div class="progress-card">
+            <div class="progress-header">
+                <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                <span id="score">0 puntos</span>
+            </div>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="main-card" id="main-card">
+            <h2>Escucha y ordena las palabras</h2>
+
+            <div class="difficulty-info">
+                <div id="difficulty-badge" class="difficulty-badge easy">Dificultad: Fácil</div>
+                <p class="instruction-text" id="instruction-text">Presiona el botón para escuchar una cadena de palabras, luego selecciona las imágenes en el orden correcto</p>
+            </div>
+
+            <div class="audio-controls">
+                <button id="play-button" class="btn primary">
+                    <i class="fas fa-volume-up"></i> Escuchar Cadena
+                </button>
+                <button id="repeat-button" class="btn secondary" style="display: none;">
+                    <i class="fas fa-redo"></i> Repetir
+                </button>
+            </div>
+
+            <div class="sequence-display" id="sequence-display" style="display: none;">
+                <span class="sequence-text" id="sequence-text">Escucha atentamente...</span>
+            </div>
+
+            <div class="images-grid" id="images-grid">
+                <!-- Se genera dinámicamente -->
+            </div>
+
+            <div class="selected-sequence">
+                <div class="selected-sequence-title">Tu selección:</div>
+                <div class="selected-items" id="selected-items">
+                    <span style="color: #9CA3AF;">Selecciona las imágenes en orden</span>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button id="check-button" class="btn primary" style="display: none;">
+                    <i class="fas fa-check"></i> Verificar
+                </button>
+                <button id="clear-button" class="btn" style="background-color: #EF4444;" onclick="clearSelection()">
+                    <i class="fas fa-trash"></i> Limpiar
+                </button>
+            </div>
+
+            <div id="feedback" class="feedback">
+                <div class="feedback-message" id="feedback-message"></div>
+                <div class="feedback-detail" id="feedback-detail"></div>
+                <div class="analysis-box" id="analysis-box"></div>
+            </div>
+        </div>
+
+        <div class="instructions-card">
+            <p>
+                💡 <span style="font-weight: 700;">Tip:</span> Escucha con atención las palabras y recuerda el orden en el que las escuchaste. ¡Puedes repetir cuantas veces necesites!
+            </p>
+        </div>
+    </div>
+
+    <script src="../../../../api.js"></script>
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

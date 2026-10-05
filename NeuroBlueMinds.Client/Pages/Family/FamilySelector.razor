@@ -1,0 +1,276 @@
+@page "/family"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<PageTitle>BlueMinds — @Loc.T("family.title")</PageTitle>
+
+<div class="min-h-screen flex flex-col items-center justify-center px-6 py-12"
+     style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0369a1 100%);">
+
+    @if (isLoading)
+    {
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+            <p class="text-white font-black text-lg animate-pulse">@Loc.T("family.loading")</p>
+        </div>
+    }
+    else if (showAddForm)
+    {
+        <div class="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md">
+            <button @onclick="CancelAddForm"
+                    class="flex items-center gap-1 text-slate-400 hover:text-slate-600 mb-6 text-sm font-bold transition-colors">
+                <span class="material-symbols-outlined" style="font-size:16px">arrow_back</span> @Loc.T("family.back")
+            </button>
+            <h2 class="text-2xl font-black text-slate-800 mb-2">@Loc.T("family.add_child")</h2>
+            <p class="text-slate-500 text-sm mb-6">@Loc.T("family.add_child_subtitle")</p>
+
+            @if (!string.IsNullOrEmpty(formError))
+            {
+                <div class="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">@formError</div>
+            }
+
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-2">@Loc.T("family.child_avatar")</label>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                        @foreach (var emoji in AvatarOptions)
+                        {
+                            <button @onclick="() => newAvatar = emoji" type="button"
+                                    class="text-3xl p-2 rounded-2xl transition-all @(newAvatar == emoji ? "bg-blue-100 scale-110 ring-2 ring-blue-400" : "hover:bg-slate-100")">
+                                @emoji
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-2">@Loc.T("family.child_name")</label>
+                    <input @bind="newName" @bind:event="oninput"
+                           placeholder="@Loc.T("family.child_name_placeholder")"
+                           class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-slate-700" />
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-2">@Loc.T("family.child_birth")</label>
+                    <input type="date" @bind="newBirth"
+                           class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-slate-700" />
+                </div>
+                <button @onclick="CreateChild" type="button"
+                        disabled="@(isSaving || string.IsNullOrWhiteSpace(newName))"
+                        class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    @if (isSaving)
+                    {
+                        <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    }
+                    <span>@(isSaving ? Loc.T("family.creating") : Loc.T("family.create"))</span>
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="text-center mb-12">
+            <img src="android-chrome-512x512.png" class="w-12 mx-auto mb-4 opacity-80" alt="BlueMinds" />
+            <h1 class="text-white text-4xl font-black mb-2">@Loc.T("family.title")</h1>
+            <p class="text-blue-200">
+                @(comingFromQuiz ? "¿Para quién es la evaluación?" : Loc.T("family.subtitle"))
+            </p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="bg-red-500/20 border border-red-400/30 text-red-200 text-sm font-bold px-5 py-3 rounded-2xl mb-6">
+                @errorMsg
+            </div>
+        }
+
+        <div style="display:flex; flex-wrap:wrap; gap:2rem; justify-content:center; max-width:960px;">
+            @foreach (var child in children)
+            {
+                <button @onclick="() => SelectChild(child)" disabled="@isSelecting"
+                        class="flex flex-col items-center gap-3 group cursor-pointer disabled:opacity-60">
+                    <div class="relative">
+                        <div class="w-32 h-32 rounded-3xl flex items-center justify-center text-6xl shadow-2xl transition-all duration-200 group-hover:scale-110"
+                             style="background:rgba(255,255,255,0.12);backdrop-filter:blur(10px);border:2px solid rgba(255,255,255,0.2);">
+                            @child.Avatar
+                        </div>
+                        @* Age badge — muestra si tiene 12+ para VARK *@
+                        @if (child.Age >= 12)
+                        {
+                            <div class="absolute -top-2 -right-2 bg-purple-500 text-white text-xs font-black px-2 py-0.5 rounded-full shadow">
+                                VARK
+                            </div>
+                        }
+                        @if (child.DominantStyle != null)
+                        {
+                            <div class="absolute -bottom-2 -right-2 bg-yellow-400 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow">
+                                @StyleEmoji(child.DominantStyle)
+                            </div>
+                        }
+                    </div>
+                    <div class="text-center">
+                        <div class="text-white font-black text-base">@child.Name</div>
+                        @if (child.Age > 0)
+                        {
+                            <div class="text-blue-200 text-xs">@Loc.T("family.years", child.Age)</div>
+                        }
+                    </div>
+                </button>
+            }
+
+            @* Add child *@
+            <button @onclick="() => showAddForm = true"
+                    class="flex flex-col items-center gap-3 group cursor-pointer">
+                <div class="w-32 h-32 rounded-3xl flex items-center justify-center shadow-2xl transition-all duration-200 group-hover:scale-110 border-2 border-dashed border-white/30 hover:border-white/60">
+                    <span class="material-symbols-outlined text-white/50 group-hover:text-white transition-colors" style="font-size:3rem">add</span>
+                </div>
+                <div class="text-white/60 font-black text-sm group-hover:text-white transition-colors">@Loc.T("family.add_child")</div>
+            </button>
+        </div>
+
+        <div class="mt-8 flex flex-col items-center gap-3">
+            <button @onclick='() => Nav.NavigateTo("/family/access")'
+                    class="flex items-center gap-2 text-white/50 hover:text-white font-bold text-sm transition-colors">
+                <span class="material-symbols-outlined" style="font-size:16px">manage_accounts</span>
+                @Loc.T("family.manage")
+            </button>
+
+            @if (!comingFromQuiz)
+            {
+                <button @onclick='() => Nav.NavigateTo("/dashboard")'
+                        class="flex items-center gap-2 text-blue-300/60 hover:text-blue-200 font-bold text-sm transition-colors">
+                    <span class="material-symbols-outlined" style="font-size:16px">dashboard</span>
+                    Ir al Dashboard
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<ChildProfileDto> children      = new();
+    private bool   isLoading    = true;
+    private bool   isSelecting  = false;
+    private bool   showAddForm  = false;
+    private bool   isSaving     = false;
+    private bool   comingFromQuiz = false;   // true cuando viene desde /quiz sin niño activo
+    private string newName      = "";
+    private string formError    = "";
+    private string errorMsg     = "";
+    private string newAvatar    = "🦕";
+    private DateOnly? newBirth;
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public    void        Dispose()         => Loc.OnLocaleChanged -= StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Detectar si viene del quiz selector (para ajustar el subtítulo)
+        var referrer = await JS.InvokeAsync<string?>("eval", "document.referrer");
+        comingFromQuiz = Nav.Uri.Contains("returnTo=quiz") ||
+                         (referrer?.Contains("/quiz") == true);
+
+        try
+        {
+            children = await Http.GetFromJsonAsync<List<ChildProfileDto>>("api/family/children") ?? new();
+
+            // Cachear para ProfileSelector
+            var json = System.Text.Json.JsonSerializer.Serialize(children);
+            await JS.InvokeVoidAsync("localStorage.setItem", "cachedChildren", json);
+        }
+        catch (Exception ex)
+        {
+            errorMsg = ex.Message.Contains("401")
+                ? "Sesión expirada. Por favor vuelve a iniciar sesión."
+                : $"No se pudieron cargar los perfiles. ({ex.Message})";
+        }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task SelectChild(ChildProfileDto child)
+    {
+        isSelecting = true; errorMsg = ""; StateHasChanged();
+        try
+        {
+            var response = await Http.PostAsync($"api/family/children/{child.Id}/select", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMsg = "No se pudo seleccionar el perfil. Intenta de nuevo.";
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<SelectChildResponseDto>();
+            if (result?.ChildToken == null) return;
+
+            // Guardar token y datos del niño activo
+            await JS.InvokeVoidAsync("localStorage.setItem", "childToken",       result.ChildToken);
+            await JS.InvokeVoidAsync("localStorage.setItem", "activeChildId",    child.Id.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", "activeChildName",  child.Name);
+            // ★ NUEVO: guardar fecha de nacimiento del niño para calcular edad en QuizSelector
+            await JS.InvokeVoidAsync("localStorage.setItem", "activeChildBirth",
+                child.Birth?.ToString("yyyy-MM-dd") ?? "");
+
+            // Actualizar parentToken como fallback
+            var authToken = await JS.InvokeAsync<string?>("localStorage.getItem", "authToken");
+            if (!string.IsNullOrEmpty(authToken))
+                await JS.InvokeVoidAsync("localStorage.setItem", "parentToken", authToken);
+
+            await JS.InvokeVoidAsync("localStorage.setItem", "lastActiveAt",
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+
+            // Si venía del quiz, volver al quiz; si no, ir al dashboard
+            var dest = comingFromQuiz ? "/quiz" : "/dashboard";
+            Nav.NavigateTo(dest, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error al seleccionar: {ex.Message}";
+        }
+        finally { isSelecting = false; StateHasChanged(); }
+    }
+
+    private async Task CreateChild()
+    {
+        if (string.IsNullOrWhiteSpace(newName)) { formError = Loc.T("family.err_name"); return; }
+        isSaving = true; formError = "";
+        try
+        {
+            var dto      = new CreateChildDto { Name = newName.Trim(), Avatar = newAvatar, Birth = newBirth };
+            var response = await Http.PostAsJsonAsync("api/family/children", dto);
+            if (!response.IsSuccessStatusCode) { formError = Loc.T("family.err_generic"); return; }
+
+            var created = await response.Content.ReadFromJsonAsync<ChildProfileDto>();
+            if (created != null) children.Add(created);
+
+            // Actualizar cache
+            var json = System.Text.Json.JsonSerializer.Serialize(children);
+            await JS.InvokeVoidAsync("localStorage.setItem", "cachedChildren", json);
+
+            showAddForm = false; newName = ""; newBirth = null; newAvatar = "🦕";
+        }
+        catch { formError = Loc.T("family.err_generic"); }
+        finally { isSaving = false; }
+    }
+
+    private void CancelAddForm() { showAddForm = false; formError = ""; newName = ""; }
+
+    private static string StyleEmoji(string? style) => style?.ToLower() switch
+    {
+        "visual"         => "👁️",
+        "auditivo"       => "👂",
+        "kinestesico"    => "✋",
+        "lectoescritura" => "📖",
+        _                => "⭐"
+    };
+
+    private static readonly string[] AvatarOptions =
+        { "🦕","🦊","🐼","🦁","🐸","🐧","🦋","🐬","🦄","🐶","🐱","🐻" };
+}

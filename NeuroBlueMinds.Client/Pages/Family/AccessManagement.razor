@@ -1,0 +1,300 @@
+@* NeuroBlueMinds.Client/Pages/Family/AccessManagement.razor
+   Parent manages who has access to their child's profile.
+   Invite specialists, view pending/active, revoke. *@
+@page "/family/access"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@using Microsoft.Extensions.Logging
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+@inject ILogger<AccessManagement> Logger
+@implements IDisposable
+
+<PageTitle>BlueMinds — @Loc.T("parent.access.title")</PageTitle>
+
+<div class="min-h-screen bg-slate-50 pb-20">
+
+    <div class="bg-gradient-to-r from-blue-700 to-cyan-500 pt-8 pb-16 px-6">
+        <div class="max-w-3xl mx-auto">
+            <button @onclick='() => Nav.NavigateTo("/family")'
+                    class="flex items-center gap-2 text-blue-100 hover:text-white text-sm font-bold mb-6 transition-colors">
+                <span class="material-symbols-outlined" style="font-size:16px">arrow_back</span>
+                @Loc.T("common.back")
+            </button>
+            <h1 class="text-white text-3xl font-black">@Loc.T("parent.access.title")</h1>
+            <p class="text-blue-100 mt-1">Control who can see your child's Neuro-Profile</p>
+        </div>
+    </div>
+
+    <div class="max-w-3xl mx-auto px-6 -mt-10 space-y-6">
+
+        @* ── Select child ── *@
+        @if (children.Count > 1)
+        {
+            <div class="bg-white rounded-3xl p-6 shadow-xl">
+                <h2 class="font-black text-slate-700 mb-4">Select child profile</h2>
+                <div class="flex gap-3 flex-wrap">
+                    @foreach (var child in children)
+                    {
+                        <button @onclick="() => SelectChild(child)"
+                                class="flex items-center gap-2 px-4 py-2 rounded-2xl border-2 font-bold text-sm transition-all @(selectedChild?.Id == child.Id ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:border-blue-200")">
+                            <span>@child.Avatar</span> @child.Name
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (selectedChild != null)
+        {
+            @* ── Invite form ── *@
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-xl font-black text-slate-800 mb-1 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-500">person_add</span>
+                    @Loc.T("parent.access.invite")
+                </h2>
+                <p class="text-slate-500 text-sm mb-6">for <strong>@selectedChild.Name</strong></p>
+
+                @if (!string.IsNullOrEmpty(inviteSuccess))
+                {
+                    <div class="bg-green-50 border border-green-200 text-green-700 text-sm font-bold p-4 rounded-2xl mb-4 flex items-start gap-3">
+                        <span class="material-symbols-outlined text-green-500">check_circle</span>
+                        <div>
+                            <div>Invitation sent!</div>
+                            <div class="font-normal mt-1">@inviteSuccess</div>
+                        </div>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(inviteError))
+                {
+                    <div class="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">@inviteError</div>
+                }
+
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-2">Specialist name</label>
+                            <input @bind="inviteName" placeholder="Dr. García"
+                                   class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors text-slate-700" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-2">Email *</label>
+                            <input @bind="inviteEmail" type="email" placeholder="specialist@clinic.com"
+                                   class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors text-slate-700" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-600 mb-2">Access level</label>
+                        <div class="flex gap-3">
+                            <button @onclick='() => inviteLevel = "full"'
+                                    class="flex-1 p-3 rounded-xl border-2 text-left text-sm transition-all @(inviteLevel == "full" ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-purple-200")">
+                                <div class="font-black @(inviteLevel == "full" ? "text-purple-700" : "text-slate-700")">Full clinical access</div>
+                                <div class="text-xs text-slate-500 mt-0.5">C1–C5 including clinical notes</div>
+                            </button>
+                            <button @onclick='() => inviteLevel = "view"'
+                                    class="flex-1 p-3 rounded-xl border-2 text-left text-sm transition-all @(inviteLevel == "view" ? "border-purple-500 bg-purple-50" : "border-slate-200 hover:border-purple-200")">
+                                <div class="font-black @(inviteLevel == "view" ? "text-purple-700" : "text-slate-700")">View only</div>
+                                <div class="text-xs text-slate-500 mt-0.5">C1–C3, no clinical notes</div>
+                            </button>
+                        </div>
+                    </div>
+                    <button @onclick="SendInvite" disabled="@(isSendingInvite || string.IsNullOrWhiteSpace(inviteEmail))"
+                            class="w-full bg-purple-600 text-white font-black py-4 rounded-2xl hover:bg-purple-700 transition-all disabled:opacity-40 flex items-center justify-center gap-2">
+                        @if (isSendingInvite) { <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> }
+                        <span>Send invitation</span>
+                    </button>
+                </div>
+            </div>
+
+            @* ── Active grants ── *@
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-blue-500">manage_accounts</span>
+                    Current access for @selectedChild.Name
+                </h2>
+
+                @if (isLoadingGrants)
+                {
+                    <div class="text-center py-8 text-slate-400 animate-pulse">@Loc.T("common.loading")</div>
+                }
+                else if (!grants.Any())
+                {
+                    <div class="text-center py-10 text-slate-400">
+                        <span class="material-symbols-outlined text-5xl block mb-3">lock_open</span>
+                        <p class="font-bold">No specialists linked yet</p>
+                        <p class="text-sm mt-1">Invite a therapist or teacher above to share access.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="space-y-3">
+                        @foreach (var grant in grants.Where(g => g.ChildProfileId == selectedChild.Id))
+                        {
+                            <div class="flex items-center gap-4 bg-slate-50 rounded-2xl p-4">
+                                <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
+                                    <span class="material-symbols-outlined text-purple-500" style="font-size:20px">clinical_notes</span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-black text-slate-800 truncate">@(grant.SpecialistName ?? grant.SpecialistEmail)</div>
+                                    <div class="text-slate-400 text-xs truncate">@grant.SpecialistEmail</div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="inline-block text-xs font-black px-2 py-1 rounded-full @StatusColor(grant.Status)">
+                                        @StatusLabel(grant.Status)
+                                    </span>
+                                    <div class="text-xs text-slate-400 mt-1">@grant.AccessLevel</div>
+                                </div>
+                                @if (grant.Status != "revoked")
+                                {
+                                    <button @onclick="() => RevokeGrant(grant)"
+                                            class="ml-2 text-slate-300 hover:text-red-500 transition-colors"
+                                            title="@Loc.T("parent.access.revoke")">
+                                        <span class="material-symbols-outlined" style="font-size:20px">block</span>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+    </div>
+</div>
+
+@* Confirm revoke modal *@
+@if (grantToRevoke != null)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem;">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <div class="text-4xl mb-4">⚠️</div>
+            <h3 class="text-xl font-black text-slate-800 mb-3">Revoke access?</h3>
+            <p class="text-slate-500 text-sm mb-6">@Loc.T("parent.access.confirm_revoke")</p>
+            <div class="flex gap-3">
+                <button @onclick="CancelRevoke" class="flex-1 border-2 border-slate-200 text-slate-600 font-black py-3 rounded-2xl hover:bg-slate-50 transition-all">
+                    @Loc.T("common.cancel")
+                </button>
+                <button @onclick="ConfirmRevoke" disabled="@isRevoking"
+                        class="flex-1 bg-red-500 text-white font-black py-3 rounded-2xl hover:bg-red-600 transition-all disabled:opacity-40">
+                    @Loc.T("parent.access.revoke")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ChildProfileDto>  children       = new();
+    private List<AccessGrantDto>   grants         = new();
+    private ChildProfileDto?       selectedChild;
+    private bool   isLoadingGrants  = false;
+    private bool   isSendingInvite  = false;
+    private bool   isRevoking       = false;
+    private string inviteEmail      = "";
+    private string inviteName       = "";
+    private string inviteLevel      = "full";
+    private string inviteSuccess    = "";
+    private string inviteError      = "";
+    private AccessGrantDto? grantToRevoke;
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public void Dispose() => Loc.OnLocaleChanged -= StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            children = await Http.GetFromJsonAsync<List<ChildProfileDto>>("api/family/children") ?? new();
+            if (children.Count == 1) await SelectChild(children[0]);
+            else if (children.Count > 1) { selectedChild = children[0]; await LoadGrants(); }
+        }
+        catch (Exception ex) { Logger.LogError(ex, "Failed to load children and access grants"); }
+        finally { StateHasChanged(); }
+    }
+
+    private async Task SelectChild(ChildProfileDto child)
+    {
+        selectedChild = child;
+        await LoadGrants();
+        StateHasChanged();
+    }
+
+    private async Task LoadGrants()
+    {
+        isLoadingGrants = true; StateHasChanged();
+        try { grants = await Http.GetFromJsonAsync<List<AccessGrantDto>>("api/access/my-grants") ?? new(); }
+        catch { }
+        finally { isLoadingGrants = false; StateHasChanged(); }
+    }
+
+    private async Task SendInvite()
+    {
+        if (selectedChild == null || string.IsNullOrWhiteSpace(inviteEmail)) return;
+        isSendingInvite = true; inviteError = ""; inviteSuccess = "";
+        try
+        {
+            var payload = new { childProfileId = selectedChild.Id, specialistEmail = inviteEmail.Trim(), specialistName = inviteName.Trim(), accessLevel = inviteLevel };
+            var response = await Http.PostAsJsonAsync("api/access/invite", payload);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                inviteError = err?.Message ?? "Error sending invitation.";
+                return;
+            }
+            inviteSuccess  = $"Invitation sent to {inviteEmail}. They'll receive a link to accept access.";
+            inviteEmail    = ""; inviteName = ""; inviteLevel = "full";
+            await LoadGrants();
+        }
+        catch { inviteError = "Connection error. Please try again."; }
+        finally { isSendingInvite = false; }
+    }
+
+    private void RevokeGrant(AccessGrantDto grant) => grantToRevoke = grant;
+    private void CancelRevoke() => grantToRevoke = null;
+
+    private async Task ConfirmRevoke()
+    {
+        if (grantToRevoke == null) return;
+        isRevoking = true;
+        try
+        {
+            await Http.DeleteAsync($"api/access/{grantToRevoke.Id}");
+            await LoadGrants();
+        }
+        catch { }
+        finally { isRevoking = false; grantToRevoke = null; }
+    }
+
+    private string StatusColor(string s) => s switch {
+        "active"  => "bg-green-100 text-green-700",
+        "pending" => "bg-amber-100 text-amber-700",
+        "revoked" => "bg-red-100 text-red-600",
+        _         => "bg-slate-100 text-slate-500"
+    };
+    private string StatusLabel(string s) => s switch {
+        "active"  => "Active",
+        "pending" => "Pending",
+        "revoked" => "Revoked",
+        _         => s
+    };
+
+    private class AccessGrantDto
+    {
+        public int      Id              { get; set; }
+        public int      ChildProfileId  { get; set; }
+        public string   ChildName       { get; set; } = "";
+        public string   SpecialistEmail { get; set; } = "";
+        public string?  SpecialistName  { get; set; }
+        public string   Status          { get; set; } = "";
+        public string   AccessLevel     { get; set; } = "";
+        public DateTime CreatedAt       { get; set; }
+        public DateTime? AcceptedAt     { get; set; }
+    }
+    private class ErrorResponse { public string? Message { get; set; } }
+}

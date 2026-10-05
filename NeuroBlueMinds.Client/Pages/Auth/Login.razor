@@ -1,0 +1,153 @@
+@page "/login"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<PageTitle>@Loc.T("app.name") — @Loc.T("auth.login.title")</PageTitle>
+
+<div class="min-h-screen bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="bg-blue-600 p-8 text-center text-white">
+            <img src="android-chrome-512x512.png" class="w-20 mx-auto mb-4" alt="BlueMinds Logo" />
+            <h1 class="text-3xl font-bold">BlueMinds</h1>
+            <p class="text-blue-100 italic">@Loc.T("auth.login.tagline")</p>
+        </div>
+
+        <div class="p-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6">@Loc.T("auth.login.title")</h2>
+
+            <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600">@Loc.T("auth.login.email")</label>
+                        <InputText @bind-Value="loginModel.Email"
+                            class="w-full mt-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="tu@email.com" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600">@Loc.T("auth.login.password")</label>
+                        <InputText @bind-Value="loginModel.Password" type="password"
+                            class="w-full mt-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="••••••••" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="text-red-500 text-sm bg-red-50 p-3 rounded-xl font-medium">@errorMessage</div>
+                    }
+
+                    <button type="submit" disabled="@isSubmitting"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                        @if (isSubmitting)
+                        {
+                            <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        }
+                        <span>@Loc.T("auth.login.submit")</span>
+                    </button>
+                </div>
+            </EditForm>
+
+            <div class="mt-8 text-center">
+                <p class="text-gray-400 text-sm mb-4">@Loc.T("auth.login.google")</p>
+                <div id="googleBtn" class="flex justify-center w-full"></div>
+            </div>
+
+            <div class="mt-6 text-center text-sm">
+                <span class="text-gray-500">@Loc.T("auth.login.no_account")</span>
+                <a href="/register" class="text-blue-600 font-bold ml-1">@Loc.T("auth.login.create")</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginDto loginModel  = new();
+    private string   errorMessage = "";
+    private bool     isSubmitting  = false;
+    private DotNetObjectReference<Login>? objRef;
+
+    protected override void OnInitialized()   => Loc.OnLocaleChanged += StateHasChanged;
+    public    void        Dispose()           { Loc.OnLocaleChanged -= StateHasChanged; objRef?.Dispose(); }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        objRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("initializeGoogleSignIn", objRef);
+    }
+
+    private const string NoServerMessage = "No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.";
+
+    private async Task HandleLogin()
+    {
+        isSubmitting = true; errorMessage = "";
+        try
+        {
+            var result = await AuthService.LoginAsync(loginModel);
+            await JS.InvokeVoidAsync("localStorage.setItem", "loginMethod", "password");
+            await ProcessAuthResult(result);
+        }
+        catch (HttpRequestException) { errorMessage = NoServerMessage; }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isSubmitting = false; }
+    }
+
+    [JSInvokable]
+    public async Task HandleGoogleCallback(string googleToken)
+    {
+        try
+        {
+            var result = await AuthService.GoogleAuthAsync(new GoogleAuthDto { Token = googleToken });
+            await JS.InvokeVoidAsync("localStorage.setItem", "loginMethod", "google");
+            await ProcessAuthResult(result);
+        }
+        // El servidor ya responde mensajes seguros para el usuario; mostrar el real
+        // evita culpar a la contraseña cuando el fallo es otro (p. ej. BD caída).
+        catch (HttpRequestException) { errorMessage = NoServerMessage; StateHasChanged(); }
+        catch (Exception ex) { errorMessage = ex.Message; StateHasChanged(); }
+    }
+
+    private async Task ProcessAuthResult(AuthResponseDto result)
+    {
+        if (result?.Token == null) return;
+
+        // ── Store tokens ──────────────────────────────────────────────────────
+        // authToken  = the parent/specialist/admin JWT (persists across child sessions)
+        // parentToken = copy of authToken, kept safe while childToken overrides authToken logic
+        // childToken is cleared on every fresh login
+        await JS.InvokeVoidAsync("localStorage.setItem",    "authToken",    result.Token);
+        await JS.InvokeVoidAsync("localStorage.setItem",    "parentToken",  result.Token);
+        await JS.InvokeVoidAsync("localStorage.removeItem", "childToken");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildId");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildName");
+
+        // ── Store identity info for ProfileSelector ───────────────────────────
+        await JS.InvokeVoidAsync("localStorage.setItem", "parentEmail",   result.User?.Email   ?? "");
+        await JS.InvokeVoidAsync("localStorage.setItem", "parentName",    result.User?.Name    ?? "");
+        await JS.InvokeVoidAsync("localStorage.setItem", "parentPicture", result.User?.Picture ?? "");
+        await JS.InvokeVoidAsync("localStorage.setItem", "lastActiveAt",
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+
+        // ── Route ─────────────────────────────────────────────────────────────
+        if (result.NeedsOnboarding)
+        {
+            Nav.NavigateTo("/onboarding", forceLoad: true);
+            return;
+        }
+
+        var role = result.User?.Role ?? "child";
+        var destination = role switch
+        {
+            "parent"     => "/family",
+            "specialist" => "/dashboard",
+            "admin"      => "/dashboard",
+            _            => "/dashboard"
+        };
+        Nav.NavigateTo(destination, forceLoad: true);
+    }
+}

@@ -1,0 +1,19 @@
+@* NeuroBlueMinds.Client/Components/RedirectToLogin.razor
+   Redirige a /login cuando [Authorize] falla.
+   Evita que se muestre el contenido de la página por un frame antes del redirect. *@
+@namespace NeuroBlueMinds.Client.Components
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageLoading />
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        // Clear any stale child token that might be causing auth confusion
+        await JS.InvokeVoidAsync("localStorage.removeItem", "childToken");
+        // Navegación interna: recargar la página reiniciaba WASM y mostraba el spinner otra vez.
+        Nav.NavigateTo("/login", replace: true);
+    }
+}

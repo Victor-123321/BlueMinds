@@ -1,0 +1,42 @@
+@page "/not-found"
+@inject NavigationManager Nav
+
+<div class="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
+    <div class="mb-8">
+        <div class="text-9xl font-bold text-blue-200">404</div>
+        <div class="text-4xl font-semibold text-blue-600 -mt-12">¡Ups! Página no encontrada</div>
+    </div>
+
+    <div class="max-w-md bg-white p-8 rounded-3xl shadow-lg border border-gray-100">
+        <p class="text-gray-600 mb-8 leading-relaxed">
+            Parece que te has perdido en el laberinto de BlueMinds. 
+            La página que buscas no existe o ha sido movida a otra ubicación.
+        </p>
+
+        <div class="flex flex-col gap-4">
+            <button @onclick='() => Nav.NavigateTo("/")' 
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-md">
+                Volver al Inicio
+            </button>
+            
+            <button @onclick="GoBack" 
+                class="w-full bg-white border-2 border-gray-200 hover:border-blue-500 text-gray-700 font-bold py-3 rounded-xl transition-all">
+                Regresar
+            </button>
+        </div>
+    </div>
+
+    <div class="mt-12">
+        <img src="images/logo.png" class="w-12 opacity-50 mx-auto grayscale" alt="Logo" />
+    </div>
+</div>
+
+@code {
+    private void GoBack()
+    {
+        // Esto es un pequeño truco de JS para volver atrás en el historial
+        // Requiere inyectar IJSRuntime si quieres hacerlo purista, 
+        // pero por ahora volvamos al login si no hay historial
+        Nav.NavigateTo("/login");
+    }
+}

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Emociones - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Narración Emocional Interactiva</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <!-- Progress -->
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                    <span id="score">0 puntos</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Main Game Card -->
+            <div class="emotion-card">
+                <h2>Observa la Escena 🎬</h2>
+
+                <!-- Video Section -->
+                <div class="video-section">
+                    <div class="video-container">
+                        <div class="video-placeholder">
+                            <div>
+                                <p>📹 GIF DE EMOCIÓN</p>
+                                <p style="font-size: 12px; margin-top: 10px;">
+                                    Los GIFs se cargarán aquí automáticamente
+                                </p>
+                                <video id="emotionVideo" style="display: none; width: 100%; height: 100%;">
+                                    <source src="" type="video/mp4">
+                                    Tu navegador no soporta videos HTML5.
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="feedback" class="feedback hidden">
+                        <span id="feedback-text"></span>
+                    </div>
+                </div>
+
+                <!-- Imitation Section -->
+                <div class="imitation-section">
+                    <h3>🎭 Ahora te toca a ti - ¡Imita la emoción!</h3>
+                    
+                    <div class="camera-controls">
+                        <button class="camera-btn start" id="startCameraBtn" onclick="startCamera()">
+                            <i class="fas fa-video"></i> Iniciar Cámara
+                        </button>
+                        <button class="camera-btn stop" id="stopCameraBtn" onclick="stopCamera()" style="display: none;">
+                            <i class="fas fa-stop"></i> Detener
+                        </button>
+                    </div>
+
+                    <div class="camera-container">
+                        <div class="camera-feed" id="cameraFeedContainer">
+                            <video id="cameraFeed" style="display: none;"></video>
+                            <span id="cameraPlaceholder">La cámara se abrirá aquí</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Analysis -->
+                    <div class="ai-analysis" id="aiAnalysis" style="display: none;">
+                        <h4 style="margin-bottom: 12px; color: var(--primary-blue);">📊 Análisis de IA</h4>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Imitación Corporal:</span>
+                            <span class="analysis-value" id="bodyImitation">--%</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Expresión Facial:</span>
+                            <span class="analysis-value" id="facialExpression">--%</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Nivel de Energía:</span>
+                            <span class="analysis-value" id="energyLevel">Neutral</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Comprensión Emocional:</span>
+                            <span class="analysis-value" id="emotionalUnderstanding">--%</span>
+                        </div>
+                    </div>
+
+                    <!-- Adaptation Notice -->
+                    <div id="adaptationNotice" class="adaptation-notice hidden">
+                        <i class="fas fa-lightbulb"></i>
+                        <span id="adaptationText"></span>
+                    </div>
+                </div>
+
+                <!-- Options for Emotion Selection -->
+                <div style="margin-top: 25px; text-align: center;">
+                    <h3 style="margin-bottom: 15px; font-size: 20px;">¿Cuál era la emoción? 👇</h3>
+                    <div id="options-container" class="options-container">
+                        <!-- Las opciones se generarán dinámicamente -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions-card">
+                <p>
+                    💡 <span class="font-bold">Tip:</span> Mira el video, intenta imitar la emoción con tu cara y cuerpo, y luego selecciona la emoción que viste.
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

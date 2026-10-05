@@ -1,0 +1,65 @@
+@* System Usability Scale (Brooke, 1996) para el cuidador (Protocolo C&W-NM §8.6.4, §9.1.7).
+   Versión de trabajo en español: si el CEI aprueba una traducción validada, reemplazar
+   los textos de Items sin cambiar el orden. Puntaje = suma ajustada × 2.5 (0–100). *@
+@using NeuroBlueMinds.Client.Research
+
+<div class="rs-sus">
+    @for (var i = 0; i < Items.Length; i++)
+    {
+        var idx = i;
+        <div class="rs-sus-item">
+            <div class="rs-sus-text">@(idx + 1). @Items[idx]</div>
+            <div class="rs-scale-row">
+                @for (var v = 1; v <= 5; v++)
+                {
+                    var val = v;
+                    <button class="rs-scale-btn @(_resp[idx] == val ? "is-selected" : "")" @onclick="() => _resp[idx] = val">@val</button>
+                }
+            </div>
+        </div>
+    }
+    <div class="rs-sus-foot">
+        <span class="rs-muted">1 = totalmente en desacuerdo · 5 = totalmente de acuerdo</span>
+        <button class="rs-btn" disabled="@(!Completo || _guardado)" @onclick="Guardar">
+            @(_guardado ? $"SUS guardado: {Puntaje():0.#}" : "Guardar SUS")
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public SessionRecorder? Recorder { get; set; }
+
+    private static readonly string[] Items =
+    {
+        "Creo que me gustaría usar este dispositivo con frecuencia.",
+        "El dispositivo me pareció innecesariamente complejo.",
+        "El dispositivo me pareció fácil de usar.",
+        "Creo que necesitaría ayuda de una persona técnica para poder usarlo.",
+        "Las funciones del dispositivo están bien integradas.",
+        "El dispositivo me pareció demasiado inconsistente.",
+        "Creo que la mayoría de las personas aprendería a usarlo muy rápido.",
+        "El dispositivo me pareció muy incómodo de usar.",
+        "Me sentí muy seguro(a) usando el dispositivo.",
+        "Necesité aprender muchas cosas antes de poder usarlo.",
+    };
+
+    private readonly int?[] _resp = new int?[10];
+    private bool _guardado;
+
+    private bool Completo => _resp.All(r => r.HasValue);
+
+    // Ítems impares (1,3,5…) suman r−1; pares suman 5−r.
+    private double Puntaje() =>
+        _resp.Select((r, i) => i % 2 == 0 ? r!.Value - 1 : 5 - r!.Value).Sum() * 2.5;
+
+    private async Task Guardar()
+    {
+        if (Recorder != null)
+        {
+            for (var i = 0; i < 10; i++)
+                await Recorder.Valor($"sus_{i + 1}", _resp[i], "likert");
+            await Recorder.Valor("sus_total", Puntaje(), "puntos");
+        }
+        _guardado = true;
+    }
+}

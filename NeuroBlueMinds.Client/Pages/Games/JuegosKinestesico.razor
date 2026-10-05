@@ -1,0 +1,78 @@
+@page "/juegos/kinestesico"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject ClientLocalizationService Loc
+@inject IDashboardService DashboardSvc
+@implements IDisposable
+
+<PageTitle>@Loc.T("games.kinestesico.title") - BlueMinds</PageTitle>
+
+@if (_selectedGame == null)
+{
+    <GameSelector Category="kinestesico"
+        Title="@Loc.T("games.kinestesico.title")"
+        Subtitle="@Loc.T("games.kinestesico.subtitle")"
+        Icon="accessibility_new"
+        Games="_games"
+        OnGameSelected="HandleGameSelected"
+        Recommendations="_recommendations"
+        SessionMessage="_sessionMessage"
+        IsLoading="_loading" />
+}
+else
+{
+    <div class="p-4 bg-slate-50 min-h-screen">
+        <button @onclick="() => _selectedGame = null"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md transition-all mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined">arrow_back</span> @Loc.T("games.back")
+        </button>
+        <GameContainer GameUrl="@_selectedGame.Url" Style="kinestesico" />
+    </div>
+}
+
+@code {
+    private SelectedGame? _selectedGame;
+    private bool _loading = true;
+    private List<NeuroBlueMinds.Shared.DTOs.ActivityRecommendationDto>? _recommendations;
+    private string _sessionMessage = "";
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public void Dispose()                   => Loc.OnLocaleChanged -= StateHasChanged;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var svc = (ClientDashboardService)DashboardSvc;
+            var result = await svc.GetRecommendationsAsync();
+            _recommendations = result.Recommendations
+                .Where(r => r.Style == "kinestesico")
+                .ToList();
+            _sessionMessage = result.SessionMessage ?? "";
+        }
+        catch
+        {
+            _recommendations = new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void HandleGameSelected(GameSelector.GameItem game) =>
+        _selectedGame = new($"/games-static/kinestesico/{game.Path}/index.html");
+
+    private record SelectedGame(string Url);
+
+    private static readonly List<GameSelector.GameItem> _games = new()
+    {
+        new("atencion-1", "Atención Conjunta",  "Sigue el foco de atención.",             "visibility",      "nivel-1/Atencion-Conjunta", "1"),
+        new("emocion-1",  "Reconoce Emociones", "Identifica gestos y sentimientos.",       "sentiment_happy", "nivel-1/emotion-game",      "1"),
+        new("lider-1",    "Sigue al Líder",     "Imita movimientos en tiempo real.",       "directions_run",  "nivel-1/sigue-lider",       "1"),
+        new("grito-2",    "Regulando el Grito", "Control de volumen y voz.",               "volume_off",      "nivel-2/Regulando-Grito",   "2"),
+        new("ritmo-2",    "Ritmo de Sílabas",   "Mueve tu cuerpo al ritmo.",              "music_note",      "nivel-2/Ritmo-Silabas",     "2"),
+        new("ritmo-3",    "Ritmo de Sílabas 2", "Coordinación avanzada.",                  "drum",            "nivel-3/Ritmo-Silabas-2",   "3"),
+        new("emocion-3",  "Emociones Pro",      "Situaciones sociales complejas.",         "theater_comedy",  "nivel-3/emotion-game-2",    "3"),
+        new("lider-3",    "Sigue al Líder 2",   "Coreografías de aprendizaje.",            "group",           "nivel-3/sigue-lider-2",     "3"),
+    };
+}

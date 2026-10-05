@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juego de Patrones - Neuro Play World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="../../css/main.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="game-container">
+    <header class="game-header">
+      <div class="back-button">
+        <button onclick="goToMainPage()">
+          <i class="fas fa-arrow-left"></i> Volver
+        </button>
+      </div>
+      <h1 class="game-title">Juego de Patrones</h1>
+      <div class="game-info">
+        <span id="score-display" data-i18n-suffix=" puntos">0</span>
+        <button class="audio-toggle" id="audioToggle" title="Activar/Desactivar audio">
+          <i class="fas fa-volume-up"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="game-content">
+      <!-- Progress -->
+      <div class="progress-card">
+        <div class="progress-header">
+          <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+          <span id="score">0 puntos</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Pattern Display -->
+      <div class="pattern-card">
+        <h2>¿Qué falta en el patrón?</h2>
+
+        <div id="pattern-display" class="pattern-display">
+          <!-- Los elementos del patrón se generarán dinámicamente -->
+        </div>
+
+        <div id="feedback" class="feedback hidden">
+          <span id="feedback-text"></span>
+        </div>
+
+        <div id="options-container" class="options-container">
+          <!-- Las opciones se generarán dinámicamente -->
+        </div>
+      </div>
+
+      <!-- Instructions -->
+      <div class="instructions-card">
+        <p>
+          💡 <span class="font-bold">Tip:</span> Busca qué se repite en el patrón y completa la secuencia.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ===== AUDIO MANAGER =====
+    class AudioManager {
+      constructor() {
+        this.synth = window.speechSynthesis;
+        this.audioEnabled = true;
+      }
+      speak(text, rate = 1) {
+        if (!this.audioEnabled) return;
+        this.synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = rate;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        utterance.lang = 'es-ES';
+        this.synth.speak(utterance);
+      }
+      toggleAudio() {
+        this.audioEnabled = !this.audioEnabled;
+        return this.audioEnabled;
+      }
+    }
+
+    const audioManager = new AudioManager();
+
+    document.getElementById('audioToggle').addEventListener('click', function () {
+      const isEnabled = audioManager.toggleAudio();
+      if (isEnabled) {
+        this.innerHTML = '<i class="fas fa-volume-up"></i>';
+        audioManager.speak('Audio activado');
+      } else {
+        this.innerHTML = '<i class="fas fa-volume-mute"></i>';
+      }
+    });
+  </script>
+
+  <script src="script.js"></script>
+
+  <script src="../../../../api.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+
+</html>

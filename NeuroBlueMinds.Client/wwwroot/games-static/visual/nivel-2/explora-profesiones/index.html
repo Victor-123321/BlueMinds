@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adivina la Profesión - BlueMinds IA</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+  <div class="game-container">
+    <header class="game-header">
+      <button class="btn-back" id="backBtn" title="Volver al menú principal">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <h1><i class="fas fa-briefcase"></i> Adivina la Profesión </h1>
+      <div class="score-container">
+        <div class="score-item">
+          <span class="score-icon">⭐</span>
+          <span class="score-value" id="score">0</span>
+        </div>
+        <button class="audio-toggle" id="audioToggle" title="Activar/Desactivar audio">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <div class="ai-indicator">
+          <i class="fas fa-robot"></i>
+        </div>
+      </div>
+    </header>
+
+    <main class="game-main">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+        <div class="progress-text" id="progressText">1/5</div>
+      </div>
+
+      <div id="difficulty-indicator" class="difficulty-indicator" style="display: none;"></div>
+
+      <div class="question-container">
+        <div class="question-number" id="questionNumber">Pregunta 1 de 5</div>
+
+        <div class="image-container">
+          <div class="image-frame">
+            <img id="professionImage" src="" alt="Imagen de una profesión">
+          </div>
+        </div>
+
+        <div class="question-text">¿Cuál es la profesión que se muestra en la imagen?</div>
+
+        <div class="options-container" id="optionsContainer">
+          <!-- Las opciones se generarán dinámicamente -->
+        </div>
+
+        <div class="feedback" id="feedback">
+          <div class="feedback-content">
+            <span class="feedback-icon" id="feedbackIcon"></span>
+            <span class="feedback-text" id="feedbackText"></span>
+          </div>
+        </div>
+
+        <div id="ai-analysis" class="ai-analysis">
+          <strong>📊 Análisis IA:</strong> <span id="analysis-text"></span>
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-primary" id="checkAnswerBtn">
+            <span class="btn-icon">✓</span>
+            Verificar respuesta
+          </button>
+          <button class="btn btn-secondary" id="nextQuestionBtn" style="display: none;">
+            <span class="btn-icon">→</span>
+            Siguiente pregunta
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <div class="modal" id="gameOverModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-icon">🎉</div>
+          <h2>¡Juego Terminado!</h2>
+        </div>
+        <div class="modal-body">
+          <div class="final-score">
+            <span class="score-label">Puntuación Final:</span>
+            <span class="score-number" id="finalScore">0</span>
+            <span class="score-total">/ 50</span>
+          </div>
+          <p id="resultMessage"></p>
+          <div class="stars-container" id="starsContainer"></div>
+
+          <div id="ai-report" class="ai-report">
+            <strong>📊 Análisis Final de IA:</strong>
+            <div style="margin-top: 10px; text-align: left; font-size: 14px; line-height: 1.8;">
+              <div>✓ Puntuación de reconocimiento: <span id="reportScore">0</span>%</div>
+              <div>✓ Profesiones dominadas: <span id="reportMastered">0</span></div>
+              <div>✓ Áreas de mejora: <span id="reportImprove">-</span></div>
+              <div>✓ Nivel final: <span id="reportLevel">FÁCIL</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="playAgainBtn">
+            <span class="btn-icon">🔄</span>
+            Jugar de nuevo
+          </button>
+          <button class="btn btn-secondary" id="backToMenuBtn">
+            <span class="btn-icon">🏠</span>
+            Volver al menú
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== AUDIO MANAGER =====
+    class AudioManager {
+      constructor() {
+        this.synth = window.speechSynthesis;
+        this.audioEnabled = true;
+      }
+      speak(text, rate = 1) {
+        if (!this.audioEnabled) return;
+        this.synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = rate;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        utterance.lang = 'es-ES';
+        this.synth.speak(utterance);
+      }
+      toggleAudio() {
+        this.audioEnabled = !this.audioEnabled;
+        return this.audioEnabled;
+      }
+    }
+
+    const audioManager = new AudioManager();
+
+    document.getElementById('audioToggle').addEventListener('click', function () {
+      const isEnabled = audioManager.toggleAudio();
+      if (isEnabled) {
+        this.innerHTML = '<i class="fas fa-volume-up"></i>';
+        audioManager.speak('Audio activado');
+      } else {
+        this.innerHTML = '<i class="fas fa-volume-mute"></i>';
+      }
+    });
+  </script>
+
+  <script src="script.js"></script>
+
+  <script src="../../../../api.js"></script>
+</body>
+
+</html>

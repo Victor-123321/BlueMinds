@@ -1,0 +1,56 @@
+@* NeuroBlueMinds.Client/Components/LanguageSwitcher.razor
+   Drop anywhere in layout — shows flag + native name, switches locale instantly *@
+@namespace NeuroBlueMinds.Client.Components
+
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<div class="relative" @ref="_container">
+    <button @onclick="Toggle"
+            class="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-3 py-2 rounded-xl transition-all">
+        <span>@CurrentFlag</span>
+        <span class="hidden sm:inline">@Loc.CurrentLocale</span>
+        <span class="material-symbols-outlined text-sm">expand_more</span>
+    </button>
+
+    @if (_open)
+    {
+        <div class="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 min-w-[180px]">
+            @foreach (var locale in Loc.SupportedLocales)
+            {
+                <button @onclick='() => SelectLocale(locale.Code)'
+                        class="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left @(locale.Code == Loc.CurrentLocale ? "bg-blue-50 font-black text-blue-700" : "text-slate-700 font-medium")">
+                    <span class="text-xl">@locale.FlagEmoji</span>
+                    <span class="text-sm">@locale.NativeName</span>
+                    @if (locale.Code == Loc.CurrentLocale)
+                    {
+                        <span class="material-symbols-outlined text-blue-500 ml-auto" style="font-size:16px">check</span>
+                    }
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _open = false;
+    private ElementReference _container;
+
+    private string CurrentFlag => Loc.SupportedLocales
+        .FirstOrDefault(l => l.Code == Loc.CurrentLocale)?.FlagEmoji ?? "🌐";
+
+    protected override void OnInitialized()
+        => Loc.OnLocaleChanged += StateHasChanged;
+
+    private void Toggle() => _open = !_open;
+
+    private async Task SelectLocale(string code)
+    {
+        _open = false;
+        await Loc.SetLocaleAsync(code);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+        => Loc.OnLocaleChanged -= StateHasChanged;
+}

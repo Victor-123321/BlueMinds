@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memoriza y Encuentra - BlueMinds IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-blue: #0066CC;
+      --cyan-light: #00B4D8;
+      --cyan-bright: #0099FF;
+      --red-color: #EF4444;
+      --green-color: #22C55E;
+      --light-bg: #F0F9FF;
+      --white: #FFFFFF;
+      --dark-text: #1F2937;
+      --shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+      --border-radius: 16px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(135deg, #0066CC 0%, #00B4D8 50%, #0099FF 100%);
+      color: var(--dark-text);
+      line-height: 1.6;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    .game-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      background-color: var(--white);
+      border-radius: var(--border-radius);
+      padding: 15px 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .back-button button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--dark-text);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 16px;
+      transition: color 0.3s ease;
+    }
+
+    .back-button button:hover {
+      color: var(--primary-blue);
+    }
+
+    .game-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-blue);
+    }
+
+    .ai-status {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      font-weight: 600;
+      color: var(--primary-blue);
+    }
+
+    .ai-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: linear-gradient(135deg, rgba(0, 102, 204, 0.1), rgba(0, 180, 216, 0.1));
+      border-radius: 8px;
+      border: 2px solid var(--primary-blue);
+    }
+
+    .ai-indicator i {
+      animation: rotate 2s linear infinite;
+    }
+
+    #audio-toggle {
+      padding: 8px 12px;
+      background: linear-gradient(135deg, rgba(0, 102, 204, 0.1), rgba(0, 180, 216, 0.1));
+      border: 2px solid var(--primary-blue);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--primary-blue);
+      font-size: 16px;
+      transition: all 0.3s ease;
+    }
+
+    #audio-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 10px rgba(0, 102, 204, 0.3);
+    }
+
+    @keyframes rotate {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .game-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .progress-card {
+      background-color: var(--white);
+      border-radius: var(--border-radius);
+      padding: 15px 20px;
+      box-shadow: var(--shadow);
+      border: 4px solid var(--primary-blue);
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-weight: 700;
+      color: var(--dark-text);
+    }
+
+    .progress-bar {
+      height: 12px;
+      background-color: #E5E7EB;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+      transition: width 0.5s ease;
+      width: 20%;
+    }
+
+    .game-card {
+      background-color: var(--white);
+      border-radius: var(--border-radius);
+      padding: 30px;
+      box-shadow: var(--shadow);
+      text-align: center;
+      border: 4px solid var(--primary-blue);
+    }
+
+    .game-card h2 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--dark-text);
+    }
+
+    .image-display {
+      margin: 30px 0;
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .image-container {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .image-display img {
+      max-width: 300px;
+      max-height: 300px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .word-label {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary-blue);
+      margin-top: 15px;
+      animation: slideDown 0.5s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .image-display.hidden {
+      display: none;
+    }
+
+    .countdown {
+      font-size: 64px;
+      font-weight: 700;
+      color: var(--primary-blue);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(1.1);
+      }
+    }
+
+    .countdown.hidden-text {
+      display: none;
+    }
+
+    .options-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .option-button {
+      padding: 15px 20px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      border: 3px solid transparent;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: white;
+      background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+      box-shadow: 0 4px 10px rgba(0, 102, 204, 0.3);
+      text-transform: capitalize;
+    }
+
+    .option-button:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 6px 15px rgba(0, 102, 204, 0.4);
+    }
+
+    .option-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .feedback {
+      font-size: 24px;
+      font-weight: 700;
+      padding: 15px;
+      border-radius: 12px;
+      margin-top: 20px;
+      display: none;
+      animation: slideUp 0.4s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .feedback.show {
+      display: block;
+    }
+
+    .feedback.correct {
+      background: linear-gradient(135deg, var(--green-color) 0%, #16A34A 100%);
+      color: white;
+    }
+
+    .feedback.incorrect {
+      background-color: var(--red-color);
+      color: white;
+    }
+
+    .ai-analysis {
+      background: rgba(0, 102, 204, 0.05);
+      border: 2px solid var(--primary-blue);
+      border-radius: 12px;
+      padding: 15px;
+      margin-top: 15px;
+      font-size: 14px;
+      color: var(--dark-text);
+      display: none;
+    }
+
+    .ai-analysis.show {
+      display: block;
+    }
+
+    .difficulty-indicator {
+      background: linear-gradient(135deg, rgba(0, 102, 204, 0.1), rgba(0, 180, 216, 0.1));
+      border-left: 4px solid var(--primary-blue);
+      padding: 10px 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-weight: 600;
+      color: var(--primary-blue);
+    }
+
+    .instructions-card {
+      background-color: rgba(0, 102, 204, 0.08);
+      border-radius: var(--border-radius);
+      padding: 15px 20px;
+      border: 2px solid var(--primary-blue);
+      text-align: center;
+      color: var(--dark-text);
+    }
+
+    @media (max-width: 768px) {
+      .game-header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+      }
+
+      .ai-status {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .options-container {
+        grid-template-columns: 1fr;
+      }
+
+      .countdown {
+        font-size: 48px;
+      }
+
+      .game-card h2 {
+        font-size: 22px;
+      }
+
+      .word-label {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="game-container">
+    <header class="game-header">
+      <div class="back-button">
+        <button onclick="goToMainPage()">
+          <i class="fas fa-arrow-left"></i> Volver
+        </button>
+      </div>
+      <h1 class="game-title">Memoriza y Encuentra IA</h1>
+      <div class="ai-status">
+        <span id="score-display" data-i18n-suffix=" puntos">0</span>
+        <button id="audio-toggle" onclick="toggleAudio()" title="Activar/Desactivar audio">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <div class="ai-indicator" title="IA adaptativa activa">
+          <i class="fas fa-robot"></i>
+          <span>IA</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="game-content">
+      <div class="progress-card">
+        <div class="progress-header">
+          <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+          <span id="score">0 puntos</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="game-card">
+        <div id="difficulty-indicator" class="difficulty-indicator" style="display: none;"></div>
+
+        <h2>¡Memoriza la imagen!</h2>
+
+        <div id="image-display" class="image-display">
+          <div class="image-container">
+            <img id="current-image" src="" alt="Imagen para memorizar">
+          </div>
+          <div id="word-label" class="word-label"></div>
+        </div>
+
+        <div id="countdown-display" class="countdown hidden-text">
+          <span id="countdown">5</span>
+        </div>
+
+        <div id="options-section" style="display: none;">
+          <p style="font-size: 18px; font-weight: 600; margin-bottom: 20px;">¿Cuál era la imagen?</p>
+          <div id="options-container" class="options-container"></div>
+        </div>
+
+        <div id="feedback" class="feedback">
+          <span id="feedback-text"></span>
+        </div>
+
+        <div id="ai-analysis" class="ai-analysis">
+          <strong>📊 Análisis IA:</strong> <span id="analysis-text"></span>
+        </div>
+      </div>
+
+      <div class="instructions-card">
+        <p>🤖 <strong>IA Adaptativa:</strong> El sistema ajusta automáticamente el tiempo de memorización según tu
+          desempeño.</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    class AudioManager {
+      constructor() {
+        this.synth = window.speechSynthesis;
+        this.audioEnabled = true;
+      }
+
+      speak(text, rate = 1) {
+        if (!this.audioEnabled) return;
+        this.synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = rate;
+        utterance.lang = 'es-ES';
+        this.synth.speak(utterance);
+      }
+
+      toggleAudio() {
+        this.audioEnabled = !this.audioEnabled;
+        return this.audioEnabled;
+      }
+    }
+
+    class AIMemoryGame {
+      constructor() {
+        this.currentRound = 0;
+        this.score = 0;
+        this.currentImage = null;
+        this.options = [];
+        this.showFeedback = false;
+        this.isMemorizingPhase = true;
+        this.timeRemaining = 5;
+        this.audioManager = new AudioManager();
+
+        this.playerMemoryScore = 0;
+        this.exposureTime = 5;
+        this.failedImages = [];
+        this.imageStats = {};
+        this.difficulty = 'normal';
+        this.consecutiveCorrect = 0;
+        this.consecutiveWrong = 0;
+        this.responseTime = 0;
+        this.startMemoryTime = 0;
+
+        this.difficultyLevels = {
+          easy: {distractors: 2, time: 6, complexity: 'simple'},
+          normal: {distractors: 2, time: 5, complexity: 'normal'},
+          hard: {distractors: 3, time: 4, complexity: 'complex'}
+        };
+
+        this.images = [
+          {src: "https://tse2.mm.bing.net/th/id/OIP.iremaMYVEQmKqX0XkISwQgAAAA?rs=1&pid=ImgDetMain&o=7&rm=3?w=1380", name: "gato", category: "animal", difficulty: 1},
+          {src: "https://tse4.mm.bing.net/th/id/OIP.g20yYrHhw8E7FZWE5yf3MwHaHa?rs=1&pid=ImgDetMain&o=7&rm=3?w=1380", name: "perro", category: "animal", difficulty: 1},
+          {src: "https://tse2.mm.bing.net/th/id/OIP.vluLeVl5ITns3V9R5ptDZgHaFc?rs=1&pid=ImgDetMain&o=7&rm=3?w=1380", name: "casa", category: "objeto", difficulty: 1},
+          {src: "https://img.freepik.com/vector-premium/dibujo-dibujos-animados-flor-rosa-centro-amarillo_1167562-3170.jpg?w=1380", name: "flor", category: "naturaleza", difficulty: 1},
+          {src: "https://tse1.mm.bing.net/th/id/OIP.J48Rm8Jv492HD2uEpSw6uwHaHa?rs=1&pid=ImgDetMain&o=7&rm=3?w=1380", name: "árbol", category: "naturaleza", difficulty: 1},
+          {src: "https://th.bing.com/th/id/OIP.KvENQqXrbmaCQ9st9X_kkQHaHH?o=7rm=3&rs=1&pid=ImgDetMain&o=7&rm=3?w=1380", name: "sol", category: "naturaleza", difficulty: 1}
+        ];
+
+        this.totalRounds = 5;
+
+        this.images.forEach(img => {
+          this.imageStats[img.name] = {
+            attempts: 0,
+            correct: 0,
+            wrong: 0,
+            avgResponseTime: 0
+          };
+        });
+      }
+
+      announceGameStart() {
+        const message = "Bienvenido a Memoriza y Encuentra. Tu objetivo es memorizar la imagen que aparece y luego seleccionar la opción correcta. Tienes cinco rondas. ¡Buena suerte!";
+        this.audioManager.speak(message, 0.9);
+      }
+
+      announceImage() {
+        const message = `Memoriza esta imagen: ${this.currentImage.name}`;
+        this.audioManager.speak(message, 0.95);
+      }
+
+      analyzePerformance(isCorrect, responseTime) {
+        const stats = this.imageStats[this.currentImage.name];
+
+        stats.attempts++;
+        stats.avgResponseTime = (stats.avgResponseTime + responseTime) / 2;
+
+        if (isCorrect) {
+          stats.correct++;
+          this.consecutiveCorrect++;
+          this.consecutiveWrong = 0;
+        } else {
+          stats.wrong++;
+          this.consecutiveWrong++;
+          this.consecutiveCorrect = 0;
+
+          if (!this.failedImages.includes(this.currentImage.name)) {
+            this.failedImages.push(this.currentImage.name);
+          }
+        }
+
+        this.playerMemoryScore = (this.score / ((this.currentRound + 1) * 20)) * 100;
+        this.adjustDifficulty();
+      }
+
+      adjustDifficulty() {
+        if (this.consecutiveCorrect >= 3) {
+          this.difficulty = 'hard';
+          this.exposureTime = Math.max(3, this.exposureTime - 1);
+        }
+        else if (this.consecutiveWrong >= 2) {
+          this.difficulty = 'easy';
+          this.exposureTime = Math.min(7, this.exposureTime + 1);
+        }
+        else {
+          this.difficulty = 'normal';
+          this.exposureTime = 5;
+        }
+
+        this.showDifficultyIndicator();
+      }
+
+      showDifficultyIndicator() {
+        const indicator = document.getElementById('difficulty-indicator');
+        const levels = {
+          easy: '⭐ Dificultad: FÁCIL',
+          normal: '⭐⭐ Dificultad: NORMAL',
+          hard: '⭐⭐⭐ Dificultad: DIFÍCIL'
+        };
+
+        indicator.textContent = levels[this.difficulty];
+        indicator.style.display = 'block';
+      }
+
+      selectOptionsIntelligently(correctImage) {
+        const difficulty = this.difficultyLevels[this.difficulty];
+        let distractors = [];
+
+        if (this.failedImages.length > 0) {
+          distractors = this.images
+            .filter(img =>
+              img.name !== correctImage.name &&
+              this.failedImages.includes(img.name)
+            )
+            .slice(0, difficulty.distractors);
+        }
+
+        if (distractors.length < difficulty.distractors) {
+          const remaining = this.images
+            .filter(img =>
+              img.name !== correctImage.name &&
+              !distractors.find(d => d.name === img.name)
+            )
+            .sort(() => Math.random() - 0.5);
+
+          distractors = [
+            ...distractors,
+            ...remaining.slice(0, difficulty.distractors - distractors.length)
+          ];
+        }
+
+        return [
+          correctImage,
+          ...distractors
+        ].sort(() => Math.random() - 0.5);
+      }
+
+      startNewRound() {
+        let randomImage;
+        if (this.failedImages.length > 0 && Math.random() > 0.5) {
+          randomImage = this.images.find(img => img.name === this.failedImages[0]);
+          this.failedImages.shift();
+        } else {
+          randomImage = this.images[Math.floor(Math.random() * this.images.length)];
+        }
+
+        this.currentImage = randomImage;
+        this.options = this.selectOptionsIntelligently(randomImage);
+        this.showFeedback = false;
+        this.isMemorizingPhase = true;
+        this.timeRemaining = this.exposureTime;
+        this.startMemoryTime = Date.now();
+
+        this.updateUI();
+        this.announceImage();
+        this.startMemorizingPhase();
+      }
+
+      updateUI() {
+        document.getElementById('current-round').textContent = this.currentRound + 1;
+        document.getElementById('total-rounds').textContent = this.totalRounds;
+        document.getElementById('score').textContent = this.score + ' puntos';
+        document.getElementById('score-display').textContent = this.score + ' puntos';
+
+        const progress = ((this.currentRound + 1) / this.totalRounds) * 100;
+        document.getElementById('progress-fill').style.width = progress + '%';
+
+        document.getElementById('current-image').src = this.currentImage.src;
+        document.getElementById('word-label').textContent = this.currentImage.name;
+        document.getElementById('image-display').classList.remove('hidden');
+        document.getElementById('options-section').style.display = 'none';
+        document.getElementById('countdown-display').classList.remove('hidden-text');
+        document.getElementById('feedback').classList.remove('show');
+        document.getElementById('ai-analysis').classList.remove('show');
+      }
+
+      startMemorizingPhase() {
+        const countdownDisplay = document.getElementById('countdown-display');
+        const countdownText = document.getElementById('countdown');
+
+        const interval = setInterval(() => {
+          countdownText.textContent = this.timeRemaining;
+          this.timeRemaining--;
+
+          if (this.timeRemaining < 0) {
+            clearInterval(interval);
+            document.getElementById('image-display').classList.add('hidden');
+            document.getElementById('countdown-display').classList.add('hidden-text');
+            this.showOptionsPhase();
+          }
+        }, 1000);
+      }
+
+      showOptionsPhase() {
+        this.isMemorizingPhase = false;
+        const optionsContainer = document.getElementById('options-container');
+        optionsContainer.innerHTML = '';
+
+        this.options.forEach((image) => {
+          const button = document.createElement('button');
+          button.className = 'option-button';
+          button.textContent = image.name;
+          button.onclick = () => this.handleAnswer(image.name);
+          optionsContainer.appendChild(button);
+        });
+
+        document.getElementById('options-section').style.display = 'block';
+        this.audioManager.speak('¿Cuál era la imagen?', 0.95);
+      }
+
+      handleAnswer(selectedName) {
+        if (this.showFeedback) return;
+
+        this.responseTime = (Date.now() - this.startMemoryTime) / 1000;
+        const isCorrect = selectedName === this.currentImage.name;
+        const feedbackElement = document.getElementById('feedback');
+        const feedbackText = document.getElementById('feedback-text');
+
+        this.analyzePerformance(isCorrect, this.responseTime);
+
+        if (isCorrect) {
+          this.score += 20;
+          feedbackText.textContent = "¡Correcto! 🎉";
+          feedbackElement.className = 'feedback correct show';
+          this.audioManager.speak('¡Correcto! Excelente memoria.', 0.95);
+        } else {
+          feedbackText.textContent = `No es correcto. Era: ${this.currentImage.name} 😊`;
+          feedbackElement.className = 'feedback incorrect show';
+          this.audioManager.speak(`Incorrecto. La respuesta correcta era: ${this.currentImage.name}`, 0.9);
+        }
+
+        this.showFeedback = true;
+        document.getElementById('score').textContent = this.score + ' puntos';
+        document.getElementById('score-display').textContent = this.score + ' puntos';
+
+        this.showAIAnalysis();
+
+        setTimeout(() => {
+          if (this.currentRound + 1 >= this.totalRounds) {
+            this.completeGame();
+          } else {
+            this.currentRound++;
+            this.startNewRound();
+          }
+        }, 2500);
+      }
+
+      showAIAnalysis() {
+        const analysisEl = document.getElementById('ai-analysis');
+        const analysisText = document.getElementById('analysis-text');
+
+        let analysis = '';
+
+        if (this.responseTime < 2) {
+          analysis += '⚡ Respuesta muy rápida. ';
+        } else if (this.responseTime > 4) {
+          analysis += '🤔 Respuesta lenta. ';
+        }
+
+        if (this.consecutiveCorrect > 0) {
+          analysis += `✅ ${this.consecutiveCorrect} correcta(s) consecutiva(s). `;
+        }
+
+        if (this.difficulty === 'hard') {
+          analysis += '📈 Nivel aumentado a DIFÍCIL. ';
+        } else if (this.difficulty === 'easy') {
+          analysis += '📉 Nivel reducido a FÁCIL. ';
+        }
+
+        analysisText.textContent = analysis || 'Memoria en desarrollo...';
+        analysisEl.classList.add('show');
+      }
+
+      completeGame() {
+        const gameCard = document.querySelector('.game-card');
+        const avgAccuracy = ((this.score / (this.totalRounds * 20)) * 100).toFixed(1);
+
+        let performanceMessage = '¡Excelente memoria visual! 🏆';
+        if (avgAccuracy < 60) {
+          performanceMessage = '¡Sigue practicando para mejorar tu memoria! 💪';
+        } else if (avgAccuracy < 80) {
+          performanceMessage = '¡Muy buen trabajo! Tu memoria mejora. 🌟';
+        }
+
+        const finalMessage = `Juego completado. Tu puntaje final es de ${this.score} puntos con una precisión de ${avgAccuracy} por ciento.`;
+        this.audioManager.speak(finalMessage, 0.9);
+
+        gameCard.innerHTML = `
+                    <h2>¡Juego Completado!</h2>
+                    <div style="font-size: 80px; margin: 30px 0;">🎉</div>
+                    
+                    <div style="background: linear-gradient(135deg, #0066CC 0%, #0099FF 100%); color: white; padding: 20px; border-radius: 12px; margin: 20px 0;">
+                        <div style="font-size: 24px; font-weight: 700; margin-bottom: 10px;">Tu puntaje final: ${this.score} puntos</div>
+                        <div style="font-size: 18px; opacity: 0.9;">Precisión: ${avgAccuracy}%</div>
+                    </div>
+
+                    <div style="background: rgba(0, 102, 204, 0.1); border-left: 4px solid #0066CC; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: left; color: #1F2937; font-size: 14px;">
+                        <strong>📊 Análisis Final de IA:</strong>
+                        <div style="margin-top: 10px;">
+                            <div>✓ Capacidad de memoria: ${this.playerMemoryScore.toFixed(0)}%</div>
+                            <div>✓ Tiempo de reacción promedio: ${this.responseTime.toFixed(2)}s</div>
+                        </div>
+                    </div>
+
+                    <div style="color: var(--primary-blue); font-size: 18px; font-weight: 600; margin: 15px 0;">
+                        ${performanceMessage}
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+                        <button style="background: linear-gradient(135deg, #0066CC 0%, #0099FF 100%); color: white; padding: 15px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" onclick="location.reload()">
+                            Jugar de Nuevo
+                        </button>
+                        <button style="background-color: #00B4D8; color: white; padding: 15px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" onclick="goToMainPage()">
+                            Volver al Menú
+                        </button>
+                    </div>
+                `;
+      }
+    }
+
+    const game = new AIMemoryGame();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      game.announceGameStart();
+      setTimeout(() => {
+        game.startNewRound();
+      }, 3000);
+    });
+
+    function toggleAudio() {
+      const enabled = game.audioManager.toggleAudio();
+      const btn = document.getElementById('audio-toggle');
+      if (btn) {
+        btn.innerHTML = enabled ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-volume-mute"></i>';
+      }
+    }
+
+    function goToMainPage() {
+      window.location.href = 'https://plekdev.github.io/BlueMinds/selectores/selector-visual.html';
+    }
+  </script>
+
+  <script src="../../../../api.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+
+</html>

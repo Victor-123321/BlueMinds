@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detective de Errores - BlueMinds IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-blue: #0066CC;
+      --cyan-light: #00B4D8;
+      --cyan-bright: #0099FF;
+      --red-color: #EF4444;
+      --yellow-color: #F59E0B;
+      --green-color: #22C55E;
+      --light-bg: #F0F9FF;
+      --white: #FFFFFF;
+      --dark-text: #1F2937;
+      --shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+      --border-radius: 16px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(135deg, #0066CC 0%, #00B4D8 50%, #0099FF 100%);
+      color: var(--dark-text);
+      line-height: 1.6;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    .game-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      background-color: var(--white);
+      border-radius: var(--border-radius);
+      padding: 15px 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .back-button button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--dark-text);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 16px;
+      transition: color 0.3s ease;
+    }
+
+    .back-button button:hover {
+      color: var(--primary-blue);
+    }
+
+    .game-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary-blue);
+    }
+
+    .ai-status {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      font-weight: 600;
+      color: var(--primary-blue);
+    }
+
+    .ai-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: linear-gradient(135deg, rgba(0, 102, 204, 0.1), rgba(0, 180, 216, 0.1));
+      border-radius: 8px;
+      border: 2px solid var(--primary-blue);
+    }
+
+    .ai-indicator i {
+      animation: rotate 2s linear infinite;
+    }
+
+    #audio-toggle {
+      padding: 8px 12px;
+      background: linear-gradient(135deg, rgba(0, 102, 204, 0.1), rgba(0, 180, 216, 0.1));
+      border: 2px solid var(--primary-blue);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--primary-blue);
+      font-size: 16px;
+      transition: all 0.3s ease;
+    }
+
+    #audio-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 10px rgba(0, 102, 204, 0.3);
+    }
+
+    @keyframes rotate {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .game-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .progress-card {
+      background-color: var(--white);
+      border-radius: var(--border-radius);
+      padding: 15px 20px;
+      box-shadow: var(--shadow);
+      border: 4px solid var(--primary-blue);
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-weight: 700;
+      color: var(--dark-text);
+    }
+
+    .progress-bar {
+      height: 12px;
+      background-color: #E5E7EB;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+      transition: width 0.5s ease;
+      width: 20%;
+    }
+
+    .game-card {
+      background-color: var(--white);
+      border-radius: var(--border-radius);
+      padding: 30px;
+      box-shadow: var(--shadow);
+      text-align: center;
+      border: 4px solid var(--primary-blue);
+    }
+
+    .game-card h2 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--dark-text);
+    }
+
+    .model-example {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.1));
+      border-left: 4px solid var(--green-color);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: left;
+      font-size: 14px;
+      color: var(--dark-text);
+    }
+
+    .model-example strong {
+      color: var(--green-color);
+    }
+
+    .difficulty-indicator {
+      background: linear-gradient(135deg, rgba(0, 102, 204, 0.1), rgba(0, 180, 216, 0.1));
+      border-left: 4px solid var(--primary-blue);
+      padding: 10px 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-weight: 600;
+      color: var(--primary-blue);
+      font-size: 14px;
+    }
+
+    .sentence-display {
+      background-color: rgba(0, 102, 204, 0.08);
+      border: 2px solid var(--primary-blue);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+      font-size: 20px;
+      font-weight: 600;
+      min-height: 150px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      color: var(--dark-text);
+    }
+
+    .word-slot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 120px;
+      height: 50px;
+      border: 2px dashed var(--primary-blue);
+      border-radius: 8px;
+      padding: 8px;
+      margin: 5px;
+      background-color: white;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--dark-text);
+      transition: all 0.3s ease;
+    }
+
+    .word-slot.correct {
+      border-color: var(--green-color);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.2));
+      border-style: solid;
+      color: var(--green-color);
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+    }
+
+    .word-slot.wrong-position {
+      border-color: var(--yellow-color);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.2));
+      border-style: solid;
+      color: var(--yellow-color);
+    }
+
+    .word-slot.incorrect {
+      border-color: var(--red-color);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+      border-style: solid;
+      color: var(--red-color);
+    }
+
+    .word-slot.empty {
+      color: #999;
+      opacity: 0.7;
+    }
+
+    .words-bank {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .word-button {
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: 2px solid var(--primary-blue);
+      background-color: var(--white);
+      color: var(--primary-blue);
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: capitalize;
+    }
+
+    .word-button:hover:not(.used) {
+      background-color: var(--primary-blue);
+      color: white;
+      transform: scale(1.05);
+    }
+
+    .word-button.used {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .action-button {
+      padding: 15px 25px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .action-button.primary {
+      background: linear-gradient(135deg, var(--primary-blue) 0%, var(--cyan-bright) 100%);
+      box-shadow: 0 4px 10px rgba(0, 102, 204, 0.3);
+    }
+
+    .action-button.secondary {
+      background-color: var(--cyan-light);
+      box-shadow: 0 4px 10px rgba(0, 180, 216, 0.3);
+    }
+
+    .action-button:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 6px 15px rgba(0, 102, 204, 0.4);
+    }
+
+    .action-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .feedback {
+      font-size: 18px;
+      font-weight: 700;
+      padding: 15px;
+      border-radius: 12px;
+      margin-top: 20px;
+      display: none;
+      animation: slideUp 0.4s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .feedback.show {
+      display: block;
+    }
+
+    .feedback.correct {
+      background: linear-gradient(135deg, var(--green-color) 0%, #16A34A 100%);
+      color: white;
+    }
+
+    .feedback.incorrect {
+      background-color: var(--red-color);
+      color: white;
+    }
+
+    .ai-analysis {
+      background: rgba(0, 102, 204, 0.05);
+      border: 2px solid var(--primary-blue);
+      border-radius: 12px;
+      padding: 15px;
+      margin-top: 15px;
+      font-size: 13px;
+      color: var(--dark-text);
+      display: none;
+      line-height: 1.6;
+    }
+
+    .ai-analysis.show {
+      display: block;
+    }
+
+    .instructions-card {
+      background-color: rgba(0, 102, 204, 0.08);
+      border-radius: var(--border-radius);
+      padding: 15px 20px;
+      border: 2px solid var(--primary-blue);
+      text-align: center;
+      color: var(--dark-text);
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .game-header {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+      }
+
+      .ai-status {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .action-buttons {
+        flex-direction: column;
+      }
+
+      .action-button {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .word-slot {
+        min-width: 100px;
+        height: 45px;
+        font-size: 14px;
+      }
+
+      .word-button {
+        padding: 10px 15px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="game-container">
+    <header class="game-header">
+      <div class="back-button">
+        <button onclick="goToMainPage()">
+          <i class="fas fa-arrow-left"></i> Volver
+        </button>
+      </div>
+      <h1 class="game-title">Detective de Errores IA</h1>
+      <div class="ai-status">
+        <span id="score-display" data-i18n-suffix=" puntos">0</span>
+        <button id="audio-toggle" onclick="toggleAudio()" title="Activar/Desactivar audio">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <div class="ai-indicator" title="IA adaptativa activa">
+          <i class="fas fa-robot"></i>
+          <span>IA</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="game-content">
+      <div class="progress-card">
+        <div class="progress-header">
+          <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+          <span id="score">0 puntos</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="game-card">
+        <div id="difficulty-indicator" class="difficulty-indicator" style="display: none;"></div>
+        <div id="model-example" class="model-example" style="display: none;"></div>
+
+        <h2>¡Forma la oración correcta!</h2>
+
+        <div class="sentence-display" id="sentence-display"></div>
+
+        <p style="font-size: 16px; margin-bottom: 15px; color: #777;">Haz clic en las palabras en el orden correcto:</p>
+        <div class="words-bank" id="words-bank"></div>
+
+        <div class="action-buttons">
+          <button class="action-button primary" onclick="checkSentence()">
+            <i class="fas fa-check"></i> Verificar
+          </button>
+          <button class="action-button secondary" onclick="resetSentence()">
+            <i class="fas fa-redo"></i> Reiniciar
+          </button>
+        </div>
+
+        <div id="feedback" class="feedback">
+          <span id="feedback-text"></span>
+        </div>
+
+        <div id="ai-analysis" class="ai-analysis">
+          <strong>📊 Análisis IA:</strong> <span id="analysis-text"></span>
+        </div>
+      </div>
+
+      <div class="instructions-card">
+        <p>🤖 <strong>IA Adaptativa:</strong> El sistema ajusta la complejidad de las oraciones según tu desempeño en la
+          construcción sintáctica.</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ===== SISTEMA DE IA ADAPTATIVO PARA CONSTRUCCIÓN SINTÁCTICA CON AUDIO =====
+
+    class AudioManager {
+      constructor() {
+        this.synth = window.speechSynthesis;
+        this.isSpeaking = false;
+        this.audioEnabled = true;
+      }
+
+      speak(text, rate = 1, pitch = 1) {
+        if (!this.audioEnabled) return;
+
+        this.synth.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = rate;
+        utterance.pitch = pitch;
+        utterance.lang = 'es-ES';
+
+        utterance.onstart = () => {
+          this.isSpeaking = true;
+        };
+
+        utterance.onend = () => {
+          this.isSpeaking = false;
+        };
+
+        utterance.onerror = () => {
+          this.isSpeaking = false;
+        };
+
+        this.synth.speak(utterance);
+      }
+
+      toggleAudio() {
+        this.audioEnabled = !this.audioEnabled;
+        return this.audioEnabled;
+      }
+    }
+
+    class AISyntaxGame {
+      constructor() {
+        this.currentRound = 0;
+        this.score = 0;
+        this.currentSentence = null;
+        this.selectedWords = [];
+        this.showFeedback = false;
+        this.audioManager = new AudioManager();
+
+        this.syntaxScore = 0;
+        this.difficulty = 'easy';
+        this.consecutiveCorrect = 0;
+        this.consecutiveWrong = 0;
+        this.attentionTime = 0;
+        this.startTime = 0;
+
+        this.syntaxErrors = {
+          wrongOrder: 0,
+          wrongWord: 0,
+          inversionPattern: false,
+          blockedWords: []
+        };
+
+        this.wordStats = {};
+        this.sentenceStats = {};
+
+        this.difficultyLevels = {
+          easy: {wordCount: 3, examples: true},
+          medium: {wordCount: 4, examples: false},
+          hard: {wordCount: 5, examples: false}
+        };
+
+        this.sentences = [
+          {
+            words: ["El", "gato", "duerme"],
+            correct: ["El", "gato", "duerme"],
+            complexity: 'easy',
+            type: 'SVO',
+            image: "🐱",
+            audioDescription: "Se muestra un gato. ¿Cuál es el animal en la imagen?",
+            audioInstruction: "Forma la oración correcta haciendo clic en las palabras en el orden adecuado"
+          },
+          {
+            words: ["perro", "El", "corre"],
+            correct: ["El", "perro", "corre"],
+            complexity: 'easy',
+            type: 'SV',
+            image: "🐕",
+            audioDescription: "Se muestra un perro. ¿Cuál es este animal?",
+            audioInstruction: "Haz clic en las palabras para formar: El perro corre"
+          },
+          {
+            words: ["vuela", "pájaro", "El"],
+            correct: ["El", "pájaro", "vuela"],
+            complexity: 'easy',
+            type: 'SV',
+            image: "🦅",
+            audioDescription: "Se muestra un pájaro volando. ¿Qué animal ves?",
+            audioInstruction: "Ordena las palabras para decir que el pájaro vuela"
+          },
+
+          {
+            words: ["niña", "come", "La", "manzana"],
+            correct: ["La", "niña", "come", "manzana"],
+            complexity: 'medium',
+            type: 'SVO',
+            image: "👧",
+            audioDescription: "Se muestra una niña comiendo una manzana. ¿Quién aparece en la imagen?",
+            audioInstruction: "Forma la oración con cuatro palabras sobre la niña"
+          },
+          {
+            words: ["bonita", "Una", "casa", "es"],
+            correct: ["Una", "casa", "es", "bonita"],
+            complexity: 'medium',
+            type: 'SVC',
+            image: "🏠",
+            audioDescription: "Se muestra una casa. ¿Cómo es esta casa?",
+            audioInstruction: "Completa la frase sobre las características de la casa"
+          },
+
+          {
+            words: ["niños", "parque", "Los", "en", "juegan"],
+            correct: ["Los", "niños", "juegan", "en", "parque"],
+            complexity: 'hard',
+            type: 'SVLP',
+            image: "🎮",
+            audioDescription: "Se muestran niños jugando en el parque. ¿Dónde están jugando?",
+            audioInstruction: "Forma la oración de cinco palabras sobre dónde juegan los niños"
+          }
+        ];
+
+        this.totalRounds = 5;
+
+        this.sentences.forEach(sent => {
+          this.sentenceStats[sent.correct.join(' ')] = {
+            attempts: 0,
+            correct: 0,
+            errors: []
+          };
+        });
+      }
+
+      announceGameStart() {
+        const message = `Bienvenido al Detective de Errores. Tu objetivo es formar oraciones correctas haciendo clic en las palabras en el orden adecuado. Tienes cinco rondas para completar. ¡Buena suerte!`;
+        this.audioManager.speak(message, 0.9);
+      }
+
+      announceImageDescription() {
+        if (this.currentSentence) {
+          this.audioManager.speak(this.currentSentence.audioDescription, 0.95, 1.1);
+        }
+      }
+
+      announceRoundInstruction() {
+        const roundMessage = `Ronda ${this.currentRound + 1} de ${this.totalRounds}. ${this.currentSentence.audioInstruction}`;
+        setTimeout(() => {
+          this.audioManager.speak(roundMessage, 0.9);
+        }, 500);
+      }
+
+      analyzeError(selected, correct) {
+        const selectedStr = selected.join(' ');
+        const correctStr = correct.join(' ');
+
+        let errorType = '';
+
+        if (new Set(selected).size === new Set(correct).size &&
+          selected.every(w => correct.includes(w))) {
+
+          errorType = 'wrongOrder';
+          this.syntaxErrors.wrongOrder++;
+
+          const isInverted = selected.every((w, i) => w === correct[correct.length - 1 - i]);
+          if (isInverted) {
+            this.syntaxErrors.inversionPattern = true;
+          }
+        } else {
+          errorType = 'wrongWord';
+          this.syntaxErrors.wrongWord++;
+
+          selected.forEach((word, idx) => {
+            if (word !== correct[idx] && !this.syntaxErrors.blockedWords.includes(word)) {
+              this.syntaxErrors.blockedWords.push(word);
+            }
+          });
+        }
+
+        return errorType;
+      }
+
+      detectBlocking() {
+        if (this.consecutiveWrong >= 3) {
+          return true;
+        }
+        return false;
+      }
+
+      calculateSyntaxScore() {
+        const totalAttempts = this.currentRound + 1;
+        const correctCount = Math.floor((this.score / 20));
+        this.syntaxScore = (correctCount / totalAttempts) * 100;
+        return this.syntaxScore;
+      }
+
+      adjustDifficulty() {
+        this.calculateSyntaxScore();
+
+        if (this.consecutiveCorrect >= 3 && this.syntaxScore >= 75) {
+          if (this.difficulty === 'easy') {
+            this.difficulty = 'medium';
+            this.audioManager.speak('¡Excelente! Pasamos al nivel medio.', 0.9);
+          } else if (this.difficulty === 'medium') {
+            this.difficulty = 'hard';
+            this.audioManager.speak('¡Muy bien! Ahora el nivel difícil.', 0.9);
+          }
+        }
+        else if (this.detectBlocking() || this.syntaxScore < 50) {
+          if (this.difficulty === 'hard') {
+            this.difficulty = 'medium';
+            this.audioManager.speak('Volvemos al nivel medio para seguir practicando.', 0.9);
+          } else if (this.difficulty === 'medium') {
+            this.difficulty = 'easy';
+            this.audioManager.speak('Practicemos el nivel fácil.', 0.9);
+          }
+          this.consecutiveWrong = 0;
+        }
+
+        this.showDifficultyIndicator();
+      }
+
+      showDifficultyIndicator() {
+        const indicator = document.getElementById('difficulty-indicator');
+        const levels = {
+          easy: '⭐ Dificultad: FÁCIL (3 palabras)',
+          medium: '⭐⭐ Dificultad: MEDIO (4 palabras)',
+          hard: '⭐⭐⭐ Dificultad: DIFÍCIL (5 palabras)'
+        };
+
+        indicator.textContent = levels[this.difficulty];
+        indicator.style.display = 'block';
+      }
+
+      selectNextSentence() {
+        const sentencesByDifficulty = this.sentences.filter(
+          s => s.complexity === this.difficulty
+        );
+
+        if (sentencesByDifficulty.length === 0) {
+          return this.sentences[Math.floor(Math.random() * this.sentences.length)];
+        }
+
+        const errorProne = sentencesByDifficulty.filter(s => {
+          const key = s.correct.join(' ');
+          return this.sentenceStats[key] && this.sentenceStats[key].errors.length > 0;
+        });
+
+        if (errorProne.length > 0 && Math.random() > 0.4) {
+          return errorProne[Math.floor(Math.random() * errorProne.length)];
+        }
+
+        return sentencesByDifficulty[Math.floor(Math.random() * sentencesByDifficulty.length)];
+      }
+
+      showModelExample() {
+        const shouldShow = this.difficulty === 'easy' && this.consecutiveWrong >= 1;
+
+        if (shouldShow) {
+          const modelEl = document.getElementById('model-example');
+          modelEl.innerHTML = `
+                <strong>💡 Ejemplo modelo:</strong> 
+                "${this.currentSentence.correct.join(' ')}" es una oración con orden ${this.currentSentence.type}
+            `;
+          modelEl.style.display = 'block';
+          this.audioManager.speak(`Ejemplo: ${this.currentSentence.correct.join(' ')}`, 1);
+        } else {
+          document.getElementById('model-example').style.display = 'none';
+        }
+      }
+
+      startNewRound() {
+        this.currentSentence = this.selectNextSentence();
+        this.selectedWords = [];
+        this.showFeedback = false;
+        this.startTime = Date.now();
+
+        this.updateUI();
+        this.showModelExample();
+
+        setTimeout(() => this.announceImageDescription(), 300);
+        setTimeout(() => this.announceRoundInstruction(), 2000);
+      }
+
+      updateUI() {
+        document.getElementById('current-round').textContent = this.currentRound + 1;
+        document.getElementById('total-rounds').textContent = this.totalRounds;
+        document.getElementById('score').textContent = this.score + ' puntos';
+        document.getElementById('score-display').textContent = this.score + ' puntos';
+
+        const progress = ((this.currentRound + 1) / this.totalRounds) * 100;
+        document.getElementById('progress-fill').style.width = progress + '%';
+
+        const sentenceDisplay = document.getElementById('sentence-display');
+        sentenceDisplay.innerHTML = '';
+
+        const imageEl = document.createElement('div');
+        imageEl.style.fontSize = '60px';
+        imageEl.textContent = this.currentSentence.image;
+        sentenceDisplay.appendChild(imageEl);
+
+        const wordsContainer = document.createElement('div');
+        wordsContainer.style.width = '100%';
+        wordsContainer.style.display = 'flex';
+        wordsContainer.style.flexWrap = 'wrap';
+        wordsContainer.style.gap = '8px';
+        wordsContainer.style.justifyContent = 'center';
+
+        for (let i = 0; i < this.currentSentence.correct.length; i++) {
+          const slot = document.createElement('div');
+          slot.className = 'word-slot';
+
+          if (this.selectedWords[i]) {
+            slot.textContent = this.selectedWords[i];
+            if (this.selectedWords[i] === this.currentSentence.correct[i]) {
+              slot.classList.add('correct');
+            } else if (this.currentSentence.correct.includes(this.selectedWords[i])) {
+              slot.classList.add('wrong-position');
+            } else {
+              slot.classList.add('incorrect');
+            }
+          } else {
+            slot.textContent = '?';
+            slot.classList.add('empty');
+          }
+          wordsContainer.appendChild(slot);
+        }
+
+        sentenceDisplay.appendChild(wordsContainer);
+
+        const wordsBank = document.getElementById('words-bank');
+        wordsBank.innerHTML = '';
+
+        const shuffledWords = [...this.currentSentence.words].sort(() => Math.random() - 0.5);
+
+        shuffledWords.forEach((word) => {
+          const button = document.createElement('button');
+          button.className = 'word-button';
+          button.textContent = word;
+          button.disabled = this.selectedWords.includes(word);
+          button.classList.toggle('used', this.selectedWords.includes(word));
+          button.onclick = () => this.selectWord(word);
+          wordsBank.appendChild(button);
+        });
+
+        document.getElementById('feedback').classList.remove('show');
+        document.getElementById('ai-analysis').classList.remove('show');
+      }
+
+      selectWord(word) {
+        const index = this.selectedWords.indexOf(word);
+
+        if (index > -1) {
+          // Si la palabra ya está seleccionada, la quitamos
+          this.selectedWords.splice(index, 1);
+          this.audioManager.speak(`${word} removida`, 1, 0.9);
+        } else if (this.selectedWords.length < this.currentSentence.correct.length) {
+          // Si no está seleccionada y hay espacio, la agregamos
+          this.selectedWords.push(word);
+          this.audioManager.speak(word, 1, 1.2);
+        }
+        this.updateUI();
+      }
+
+      resetSentence() {
+        this.selectedWords = [];
+        this.audioManager.speak('Reiniciado. Intenta de nuevo.', 0.9);
+        this.updateUI();
+      }
+
+      checkSentence() {
+        if (this.selectedWords.length !== this.currentSentence.correct.length) {
+          const feedbackElement = document.getElementById('feedback');
+          feedbackElement.textContent = 'Debes completar toda la oración';
+          feedbackElement.className = 'feedback incorrect show';
+          this.audioManager.speak('Debes seleccionar todas las palabras', 0.9);
+          return;
+        }
+
+        this.attentionTime = (Date.now() - this.startTime) / 1000;
+        const isCorrect = JSON.stringify(this.selectedWords) === JSON.stringify(this.currentSentence.correct);
+        const feedbackElement = document.getElementById('feedback');
+        const feedbackText = document.getElementById('feedback-text');
+
+        const sentenceKey = this.currentSentence.correct.join(' ');
+        this.sentenceStats[sentenceKey].attempts++;
+
+        if (isCorrect) {
+          this.score += 20;
+          this.consecutiveCorrect++;
+          this.consecutiveWrong = 0;
+          this.sentenceStats[sentenceKey].correct++;
+
+          feedbackText.textContent = `¡Correcto! 🎉 ${this.currentSentence.image} Orden: ${this.currentSentence.type}`;
+          feedbackElement.className = 'feedback correct show';
+          this.audioManager.speak(`¡Correcto! La oración es: ${this.currentSentence.correct.join(' ')}`, 0.95);
+        } else {
+          const errorType = this.analyzeError(this.selectedWords, this.currentSentence.correct);
+          this.consecutiveWrong++;
+          this.consecutiveCorrect = 0;
+          this.sentenceStats[sentenceKey].errors.push(errorType);
+
+          feedbackText.textContent = `No es correcto. Intenta de nuevo 😊`;
+          feedbackElement.className = 'feedback incorrect show';
+          this.audioManager.speak(`Incorrecto. La respuesta correcta es: ${this.currentSentence.correct.join(' ')}. Intenta de nuevo.`, 0.9);
+        }
+
+        this.showFeedback = true;
+        document.getElementById('score').textContent = this.score + ' puntos';
+        document.getElementById('score-display').textContent = this.score + ' puntos';
+
+        this.adjustDifficulty();
+        this.showAIAnalysis();
+
+        setTimeout(() => {
+          if (this.currentRound + 1 >= this.totalRounds) {
+            this.completeGame();
+          } else {
+            this.currentRound++;
+            this.startNewRound();
+          }
+        }, 3000);
+      }
+
+      showAIAnalysis() {
+        const analysisEl = document.getElementById('ai-analysis');
+        const analysisText = document.getElementById('analysis-text');
+
+        let analysis = '';
+
+        if (this.attentionTime < 2) {
+          analysis += '⚡ Respuesta muy rápida (impulsiva). ';
+        } else if (this.attentionTime > 8) {
+          analysis += '🤔 Sostuvo la atención > 8s (concentración prolongada). ';
+        }
+
+        if (this.syntaxErrors.inversionPattern) {
+          analysis += '🔄 Patrón detectado: inversión sistemática de palabras. ';
+        }
+
+        if (this.syntaxErrors.blockedWords.length > 0) {
+          analysis += `🚫 Palabras problemáticas: ${this.syntaxErrors.blockedWords.slice(0, 2).join(', ')}. `;
+        }
+
+        if (this.consecutiveCorrect > 0) {
+          analysis += `✅ ${this.consecutiveCorrect} acierto(s) consecutivo(s). `;
+        }
+        if (this.consecutiveWrong > 0) {
+          analysis += `❌ ${this.consecutiveWrong} error(es) consecutivo(s). `;
+        }
+
+        if (this.difficulty === 'hard') {
+          analysis += '📈 Nivel: DIFÍCIL. ';
+        } else if (this.difficulty === 'easy') {
+          analysis += '📉 Nivel: FÁCIL. ';
+        } else {
+          analysis += '➡️ Nivel: MEDIO. ';
+        }
+
+        analysisText.textContent = analysis || 'Construcción sintáctica en desarrollo...';
+        analysisEl.classList.add('show');
+      }
+
+      completeGame() {
+        const gameCard = document.querySelector('.game-card');
+        const avgAccuracy = ((this.score / (this.totalRounds * 20)) * 100).toFixed(1);
+        const finalSyntaxScore = this.calculateSyntaxScore().toFixed(0);
+
+        let performanceMessage = '¡Excelente construcción sintáctica! 🏆';
+        let mainWeakness = 'Ninguna detectada';
+
+        if (avgAccuracy < 60) {
+          performanceMessage = '¡Sigue practicando la construcción de oraciones! 💪';
+        } else if (avgAccuracy < 80) {
+          performanceMessage = '¡Muy buen trabajo! Tu sintaxis mejora. 🌟';
+        }
+
+        if (this.syntaxErrors.blockedWords.length > 0) {
+          mainWeakness = this.syntaxErrors.blockedWords.slice(0, 2).join(', ');
+        }
+
+        const finalMessage = `Juego completado. Tu puntaje final es de ${this.score} puntos con una precisión de ${avgAccuracy} por ciento. ${performanceMessage}`;
+        this.audioManager.speak(finalMessage, 0.9);
+
+        gameCard.innerHTML = `
+            <h2>¡Juego Completado!</h2>
+            <div style="font-size: 80px; margin: 30px 0;">🎉</div>
+            
+            <div style="background: linear-gradient(135deg, #0066CC 0%, #0099FF 100%); color: white; padding: 20px; border-radius: 12px; margin: 20px 0;">
+                <div style="font-size: 24px; font-weight: 700; margin-bottom: 10px;">Tu puntaje final: ${this.score} puntos</div>
+                <div style="font-size: 18px; opacity: 0.9;">Precisión: ${avgAccuracy}%</div>
+            </div>
+
+            <div style="background: rgba(0, 102, 204, 0.1); border-left: 4px solid #0066CC; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: left; color: #1F2937; font-size: 14px;">
+                <strong>📊 Análisis Final de IA - Construcción Sintáctica:</strong>
+                <div style="margin-top: 10px; line-height: 1.8;">
+                    <div>✓ Puntuación sintáctica: ${finalSyntaxScore}%</div>
+                    <div>✓ Errores de orden: ${this.syntaxErrors.wrongOrder}</div>
+                    <div>✓ Errores de palabra: ${this.syntaxErrors.wrongWord}</div>
+                    <div>✓ Palabras a practicar: ${mainWeakness}</div>
+                    <div>✓ Patrón de inversión detectado: ${this.syntaxErrors.inversionPattern ? 'Sí' : 'No'}</div>
+                    <div>✓ Nivel final: ${this.difficulty.toUpperCase()}</div>
+                </div>
+            </div>
+
+            <div style="color: var(--primary-blue); font-size: 18px; font-weight: 600; margin: 15px 0;">
+                ${performanceMessage}
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+                <button style="background: linear-gradient(135deg, #0066CC 0%, #0099FF 100%); color: white; padding: 15px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" onclick="location.reload()">
+                    Jugar de Nuevo
+                </button>
+                <button style="background-color: #00B4D8; color: white; padding: 15px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" onclick="goToMainPage()">
+                    Volver al Menú
+                </button>
+            </div>
+        `;
+      }
+    }
+
+    const game = new AISyntaxGame();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      game.announceGameStart();
+      setTimeout(() => {
+        game.startNewRound();
+      }, 3000);
+    });
+
+    function checkSentence() {
+      game.checkSentence();
+    }
+
+    function resetSentence() {
+      game.resetSentence();
+    }
+
+    function toggleAudio() {
+      const enabled = game.audioManager.toggleAudio();
+      const btn = document.getElementById('audio-toggle');
+      if (btn) {
+        btn.innerHTML = enabled ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-volume-mute"></i>';
+      }
+    }
+
+    function goToMainPage() {
+      window.location.href = 'https://plekdev.github.io/BlueMinds/selectores/selector-visual.html';
+    }
+  </script>
+  <script src="../../../../api.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+
+</html>

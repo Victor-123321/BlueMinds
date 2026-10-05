@@ -1,0 +1,149 @@
+@page "/register"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<PageTitle>@Loc.T("app.name") — @Loc.T("auth.register.title")</PageTitle>
+
+<div class="min-h-screen flex items-center justify-center p-4"
+     style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0369a1 100%);">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="bg-blue-600 p-8 text-center text-white">
+            <img src="android-chrome-512x512.png" class="w-16 mx-auto mb-3" alt="BlueMinds" />
+            <h1 class="text-2xl font-black">@Loc.T("auth.register.title")</h1>
+            <p class="text-blue-100 text-sm mt-1">@Loc.T("auth.register.subtitle")</p>
+        </div>
+
+        <div class="p-8">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">@errorMessage</div>
+            }
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-1">@Loc.T("auth.register.name")</label>
+                    <input @bind="name" placeholder="@Loc.T("auth.register.name_placeholder")"
+                           class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors" />
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-1">@Loc.T("auth.register.email")</label>
+                    <input @bind="email" type="email" placeholder="tu@email.com"
+                           class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors" />
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-1">@Loc.T("auth.register.password")</label>
+                    <input @bind="password" type="password" placeholder="@Loc.T("auth.register.password_placeholder")"
+                           class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors" />
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-600 mb-1">@Loc.T("auth.register.confirm")</label>
+                    <input @bind="confirmPassword" type="password" placeholder="@Loc.T("auth.register.confirm_placeholder")"
+                           class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors" />
+                </div>
+
+                <button @onclick="HandleRegister" disabled="@isSubmitting"
+                        class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all disabled:opacity-40 flex items-center justify-center gap-2 mt-2">
+                    @if (isSubmitting) { <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> }
+                    <span>@Loc.T("auth.register.submit")</span>
+                </button>
+            </div>
+
+            <div class="mt-6 text-center">
+                <div class="flex items-center gap-3 my-4">
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                    <span class="text-slate-400 text-sm">or</span>
+                    <div class="flex-1 h-px bg-slate-200"></div>
+                </div>
+                <div id="googleBtnRegister" class="flex justify-center"></div>
+            </div>
+
+            <div class="mt-6 text-center text-sm">
+                <span class="text-slate-500">@Loc.T("auth.register.have_account")</span>
+                <a href="/login" class="text-blue-600 font-bold ml-1">@Loc.T("auth.register.login")</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string name = "", email = "", password = "", confirmPassword = "", errorMessage = "";
+    private bool isSubmitting = false;
+    private DotNetObjectReference<Register>? objRef;
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public void Dispose() { Loc.OnLocaleChanged -= StateHasChanged; objRef?.Dispose(); }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        // Wire up Google button on register page too
+        objRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("initializeGoogleSignInOnElement", objRef, "googleBtnRegister");
+    }
+
+    [JSInvokable]
+    public async Task HandleGoogleCallback(string googleToken)
+    {
+        try
+        {
+            // Clear any previous session first
+            foreach (var key in new[] { "authToken","childToken","parentToken","parentEmail","parentName",
+                "parentPicture","activeChildId","activeChildName","cachedChildren","lastActiveAt","locale","loginMethod" })
+                await JS.InvokeVoidAsync("localStorage.removeItem", key);
+
+            var result = await AuthService.GoogleAuthAsync(new GoogleAuthDto { Token = googleToken });
+            if (!string.IsNullOrEmpty(result.Token))
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", "authToken",    result.Token);
+                await JS.InvokeVoidAsync("localStorage.setItem", "loginMethod",  "google");
+                await JS.InvokeVoidAsync("localStorage.setItem", "parentEmail",  result.User?.Email ?? "");
+                await JS.InvokeVoidAsync("localStorage.setItem", "parentName",   result.User?.Name  ?? "");
+            }
+            Nav.NavigateTo("/onboarding", forceLoad: true);
+        }
+        catch { errorMessage = "Error con Google. Intenta de nuevo."; StateHasChanged(); }
+    }
+
+    private async Task HandleRegister()
+    {
+        errorMessage = "";
+        if (string.IsNullOrWhiteSpace(name))    { errorMessage = Loc.T("auth.register.err_name");     return; }
+        if (string.IsNullOrWhiteSpace(email))   { errorMessage = Loc.T("auth.register.err_email");    return; }
+        if (password.Length < 8)                { errorMessage = Loc.T("auth.register.err_password"); return; }
+        if (password != confirmPassword)        { errorMessage = Loc.T("auth.register.err_match");    return; }
+
+        isSubmitting = true;
+        try
+        {
+            // Clear any previous session
+            foreach (var key in new[] { "authToken","childToken","parentToken","parentEmail","parentName",
+                "parentPicture","activeChildId","activeChildName","cachedChildren","lastActiveAt","locale" })
+                await JS.InvokeVoidAsync("localStorage.removeItem", key);
+
+            var result = await AuthService.RegisterAsync(new RegisterDto {
+                Name = name.Trim(), Email = email.Trim().ToLower(),
+                Password = password, ConfirmPassword = confirmPassword,
+                Birth = "2000-01-01", Country = ""
+            });
+
+            if (!string.IsNullOrEmpty(result.Token))
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", "authToken",   result.Token);
+                await JS.InvokeVoidAsync("localStorage.setItem", "parentEmail", email.Trim().ToLower());
+                await JS.InvokeVoidAsync("localStorage.setItem", "parentName",  name.Trim());
+            }
+            Nav.NavigateTo("/onboarding", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message.Contains("registrado") || ex.Message.Contains("exists")
+                ? Loc.T("auth.register.err_exists")
+                : Loc.T("auth.register.err_generic");
+        }
+        finally { isSubmitting = false; }
+    }
+}

@@ -1,0 +1,330 @@
+@* NeuroBlueMinds.Client/Pages/Family/ProfileSelector.razor
+   First screen shown when a session expires after 4h inactivity.
+   - Children tap avatar → uses parentToken to request child JWT
+   - Parent taps card → password re-auth (Google users go to /login)
+   - Normal flow (active token) skips this screen entirely via redirect *@
+@page "/"
+@page "/select-profile"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@using Microsoft.Extensions.Logging
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<ProfileSelector> Logger
+
+<PageTitle>BlueMinds</PageTitle>
+
+<div class="min-h-screen flex flex-col items-center justify-center px-6 py-12"
+     style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0369a1 100%);">
+
+    @if (isLoading)
+    {
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+            <p class="text-white font-black text-lg animate-pulse">Cargando...</p>
+        </div>
+    }
+    else if (showParentPassword)
+    {
+        @* ── Parent password re-auth ── *@
+        <div class="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-sm text-center">
+            <div class="text-5xl mb-4">👤</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-1">@parentName</h2>
+            <p class="text-slate-500 text-sm mb-6">Ingresa tu contraseña para continuar</p>
+
+            @if (!string.IsNullOrEmpty(authError))
+            {
+                <div class="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">@authError</div>
+            }
+
+            <div class="space-y-4">
+                <input @bind="parentPassword" type="password"
+                       @onkeydown="HandlePasswordKey"
+                       placeholder="Contraseña"
+                       class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none text-slate-700 text-center text-lg tracking-widest" />
+
+                <button @onclick="LoginAsParent" disabled="@isAuthenticating"
+                        class="w-full bg-blue-600 text-white font-black py-3 rounded-2xl hover:bg-blue-700 transition-all disabled:opacity-40 flex items-center justify-center gap-2">
+                    @if (isAuthenticating)
+                    {
+                        <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    }
+                    <span>Entrar como padre</span>
+                </button>
+
+                <button @onclick='() => { showParentPassword = false; authError = ""; parentPassword = ""; }'
+                        class="w-full text-slate-400 font-bold py-2 text-sm hover:text-slate-600 transition-colors">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* ── Profile selector grid ── *@
+        <div class="text-center mb-10">
+            <img src="android-chrome-512x512.png" class="w-14 mx-auto mb-4 opacity-80" alt="BlueMinds" />
+            <h1 class="text-white text-4xl font-black">¿Quién eres?</h1>
+            <p class="text-blue-200 mt-2">Selecciona tu perfil para comenzar</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(sessionExpiredMsg))
+        {
+            <div class="bg-yellow-500/20 border border-yellow-400/30 text-yellow-200 text-sm font-bold px-5 py-3 rounded-2xl mb-6 text-center">
+                @sessionExpiredMsg
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(selectError))
+        {
+            <div class="bg-red-500/20 border border-red-400/30 text-red-200 text-sm font-bold px-5 py-3 rounded-2xl mb-4 text-center">
+                @selectError
+            </div>
+        }
+
+        <div style="display:flex; flex-wrap:wrap; gap:1.75rem; justify-content:center; max-width:900px;">
+
+            @* Child profiles *@
+            @foreach (var child in children)
+            {
+                <button @onclick="() => SelectChild(child)"
+                        disabled="@isSelecting"
+                        class="flex flex-col items-center gap-3 group cursor-pointer disabled:opacity-50">
+                    <div class="w-28 h-28 rounded-3xl flex items-center justify-center text-5xl shadow-2xl transition-all duration-200 group-hover:scale-110"
+                         style="background:rgba(255,255,255,0.12); backdrop-filter:blur(10px); border:2px solid rgba(255,255,255,0.18);">
+                        @child.Avatar
+                    </div>
+                    <div class="text-center">
+                        <div class="text-white font-black text-base">@child.Name</div>
+                        @if (child.Age > 0)
+                        {
+                            <div class="text-blue-200 text-xs">@child.Age años</div>
+                        }
+                    </div>
+                </button>
+            }
+
+            @* Parent card — always last *@
+            <button @onclick="ShowParentPrompt"
+                    class="flex flex-col items-center gap-3 group cursor-pointer">
+                <div class="w-28 h-28 rounded-3xl flex items-center justify-center shadow-2xl transition-all duration-200 group-hover:scale-110"
+                     style="background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.25);">
+                    @if (!string.IsNullOrEmpty(parentPicture))
+                    {
+                        <img src="@parentPicture" class="w-full h-full rounded-3xl object-cover" alt="Padre" />
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined text-white/70 group-hover:text-white transition-colors"
+                              style="font-size:3rem;">person</span>
+                    }
+                </div>
+                <div class="text-center">
+                    <div class="text-white/70 font-black text-base group-hover:text-white transition-colors">@parentName</div>
+                    <div class="text-blue-300/60 text-xs">Panel de padres</div>
+                </div>
+            </button>
+        </div>
+
+        <div class="mt-12 text-center">
+            <p class="text-blue-200/50 text-sm">¿Primera vez?
+                <a href="/register" class="text-blue-300 hover:text-white font-bold transition-colors">Crear cuenta</a>
+            </p>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ChildProfileDto> children         = new();
+    private bool   isLoading          = true;
+    private bool   isSelecting        = false;
+    private bool   showParentPassword = false;
+    private bool   isAuthenticating   = false;
+    private bool   isGoogleUser       = false;
+    private string parentPassword     = "";
+    private string parentName         = "Padre / Madre";
+    private string parentPicture      = "";
+    private string parentEmail        = "";
+    private string authError          = "";
+    private string selectError        = "";
+    private string sessionExpiredMsg  = "";
+
+    private const long InactivityMs = 4 * 60 * 60 * 1000;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            // ── 1. Check inactivity expiry ────────────────────────────────────
+            var lastActiveStr = await JS.InvokeAsync<string?>("localStorage.getItem", "lastActiveAt");
+            bool sessionExpired = false;
+            if (!string.IsNullOrEmpty(lastActiveStr) && long.TryParse(lastActiveStr, out var lastActive))
+            {
+                var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - lastActive;
+                if (elapsed > InactivityMs)
+                {
+                    await ClearChildSessionTokens();
+                    sessionExpiredMsg = "Tu sesión expiró por inactividad. Selecciona tu perfil para continuar.";
+                    sessionExpired = true;
+                }
+            }
+
+            // ── 2. If session is active, skip this screen ─────────────────────
+            if (!sessionExpired)
+            {
+                var authToken  = await JS.InvokeAsync<string?>("localStorage.getItem", "authToken");
+                var childToken = await JS.InvokeAsync<string?>("localStorage.getItem", "childToken");
+
+                if (string.IsNullOrEmpty(authToken))
+                {
+                    Nav.NavigateTo("/login", forceLoad: true);
+                    return;
+                }
+
+                // Active token — go straight to app
+                var destination = !string.IsNullOrEmpty(childToken) ? "/dashboard" : "/family";
+                Nav.NavigateTo(destination);
+                return;
+            }
+
+            // ── 3. Session expired — load identity info from localStorage ──────
+            parentEmail   = await JS.InvokeAsync<string?>("localStorage.getItem", "parentEmail")   ?? "";
+            parentName    = await JS.InvokeAsync<string?>("localStorage.getItem", "parentName")    ?? "Padre / Madre";
+            parentPicture = await JS.InvokeAsync<string?>("localStorage.getItem", "parentPicture") ?? "";
+            var loginMethod = await JS.InvokeAsync<string?>("localStorage.getItem", "loginMethod");
+            isGoogleUser  = loginMethod == "google";
+
+            // ── 4. Load cached children (saved in FamilySelector) ─────────────
+            var cachedChildren = await JS.InvokeAsync<string?>("localStorage.getItem", "cachedChildren");
+            if (!string.IsNullOrEmpty(cachedChildren))
+            {
+                try
+                {
+                    children = System.Text.Json.JsonSerializer.Deserialize<List<ChildProfileDto>>(cachedChildren)
+                               ?? new();
+                }
+                catch { children = new(); }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize profile selector");
+        }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    private void ShowParentPrompt()
+    {
+        if (isGoogleUser)
+        {
+            // Google users have no password — send them to /login where the Google button lives
+            Nav.NavigateTo("/login");
+            return;
+        }
+        authError          = "";
+        parentPassword     = "";
+        showParentPassword = true;
+    }
+
+    private async Task HandlePasswordKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoginAsParent();
+    }
+
+    private async Task LoginAsParent()
+    {
+        if (string.IsNullOrWhiteSpace(parentEmail))
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        isAuthenticating = true; authError = ""; StateHasChanged();
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/login", new
+            {
+                Email    = parentEmail,
+                Password = parentPassword
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                authError = "Contraseña incorrecta. Intenta de nuevo.";
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
+            if (result?.Token == null) { authError = "Error al iniciar sesión."; return; }
+
+            // Restore full session
+            await JS.InvokeVoidAsync("localStorage.setItem", "authToken",   result.Token);
+            await JS.InvokeVoidAsync("localStorage.setItem", "parentToken", result.Token);
+            await JS.InvokeVoidAsync("localStorage.removeItem", "childToken");
+            await JS.InvokeVoidAsync("localStorage.setItem", "lastActiveAt",
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+
+            Nav.NavigateTo("/family", forceLoad: true);
+        }
+        catch { authError = "Error de conexión. Intenta de nuevo."; }
+        finally { isAuthenticating = false; StateHasChanged(); }
+    }
+
+    private async Task SelectChild(ChildProfileDto child)
+    {
+        // Must have a parentToken to request a child JWT from the API.
+        // parentToken is stored on Login and refreshed in FamilySelector.SelectChild.
+        var parentToken = await JS.InvokeAsync<string?>("localStorage.getItem", "parentToken");
+        if (string.IsNullOrEmpty(parentToken))
+        {
+            // Fallback: ask parent to re-auth
+            ShowParentPrompt();
+            return;
+        }
+
+        isSelecting = true; selectError = ""; StateHasChanged();
+        try
+        {
+            // Temporarily use parentToken for this one request
+            Http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", parentToken);
+
+            var response = await Http.PostAsync($"api/family/children/{child.Id}/select", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                selectError = "No se pudo seleccionar el perfil. Por favor entra como padre primero.";
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<SelectChildResponseDto>();
+            if (result?.ChildToken == null) return;
+
+            await JS.InvokeVoidAsync("localStorage.setItem", "childToken",      result.ChildToken);
+            await JS.InvokeVoidAsync("localStorage.setItem", "activeChildId",   child.Id.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", "activeChildName", child.Name);
+            await JS.InvokeVoidAsync("localStorage.setItem", "lastActiveAt",
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+
+            Nav.NavigateTo("/dashboard", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            selectError = $"Error: {ex.Message}";
+        }
+        finally { isSelecting = false; StateHasChanged(); }
+    }
+
+    private async Task ClearChildSessionTokens()
+    {
+        // Keep parentToken and parentEmail intact so re-auth works.
+        // Only clear the active session tokens.
+        await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "childToken");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildId");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildName");
+    }
+}

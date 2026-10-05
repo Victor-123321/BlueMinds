@@ -1,0 +1,148 @@
+@* AvatarPicker.razor — Emoji avatar selector for child profiles.
+   Shows a grid of fun emojis; fires OnAvatarSelected when the parent picks one.
+   Includes a "random" button for quick selection.
+   Usage:
+     <AvatarPicker CurrentAvatar="@profile.Avatar" OnAvatarSelected="HandleAvatarChange" /> *@
+
+@inject HttpClient Http
+@inject ILogger<AvatarPicker> Logger
+
+<div class="space-y-4">
+
+    @* ── Current avatar + prompt ─────────────────────────────────────────────── *@
+    <div class="flex items-center gap-4">
+        <div class="w-20 h-20 rounded-full bg-gradient-to-br from-blue-200 to-purple-200
+                    flex items-center justify-center text-5xl shadow-lg border-4 border-white">
+            @(_pendingAvatar ?? CurrentAvatar ?? "🦕")
+        </div>
+        <div>
+            <p class="font-black text-slate-800 text-base">Avatar de @ChildName</p>
+            <p class="text-slate-500 text-sm">Elige un emoji que le guste</p>
+            <button @onclick="PickRandom"
+                    class="mt-1 text-blue-600 font-bold text-xs hover:text-blue-800 underline">
+                🎲 Elegir aleatorio
+            </button>
+        </div>
+    </div>
+
+    @* ── Emoji grid ──────────────────────────────────────────────────────────── *@
+    <div class="grid grid-cols-8 gap-2 max-h-56 overflow-y-auto pr-1">
+        @foreach (var emoji in _avatarOptions)
+        {
+            var isSelected = (_pendingAvatar ?? CurrentAvatar) == emoji;
+            <button @onclick="() => SelectAvatar(emoji)"
+                    class="@(isSelected
+                              ? "ring-4 ring-blue-500 bg-blue-100 scale-110 shadow-md"
+                              : "bg-slate-50 hover:bg-blue-50 hover:scale-105")
+                           rounded-2xl p-2 text-3xl transition-all aspect-square flex items-center justify-center">
+                @emoji
+            </button>
+        }
+    </div>
+
+    @* ── Confirm / Cancel ────────────────────────────────────────────────────── *@
+    @if (!string.IsNullOrEmpty(_pendingAvatar) && _pendingAvatar != CurrentAvatar)
+    {
+        <div class="flex gap-2 pt-2">
+            <button @onclick="ConfirmAvatar" disabled="@_saving"
+                    class="bg-blue-600 text-white font-black px-6 py-2 rounded-xl text-sm
+                           hover:bg-blue-700 transition-all disabled:opacity-50 flex-1">
+                @(_saving ? "Guardando…" : "✓ Confirmar")
+            </button>
+            <button @onclick="CancelSelection"
+                    class="bg-slate-100 text-slate-600 font-bold px-4 py-2 rounded-xl text-sm
+                           hover:bg-slate-200 transition-all">
+                Cancelar
+            </button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_errorMsg))
+    {
+        <p class="text-red-500 text-xs font-bold">⚠️ @_errorMsg</p>
+    }
+</div>
+
+@code {
+    [Parameter] public string?  CurrentAvatar      { get; set; }
+    [Parameter] public string   ChildName          { get; set; } = "tu hijo";
+    [Parameter] public int      ChildProfileId     { get; set; }
+    [Parameter] public EventCallback<string> OnAvatarSelected { get; set; }
+
+    private string? _pendingAvatar;
+    private bool    _saving   = false;
+    private string  _errorMsg = "";
+
+    private static readonly string[] _avatarOptions =
+    {
+        // Animals — friendly and neurodiverse-tested favorites
+        "🦕", "🦖", "🦄", "🐉", "🦋", "🐙", "🦊", "🐸",
+        "🐼", "🐨", "🐯", "🦁", "🐺", "🦝", "🐻", "🐧",
+        "🦩", "🦜", "🐬", "🐳", "🦈", "🐊", "🦦", "🦥",
+        "🐝", "🦋", "🐠", "🐙", "🦑", "🦀", "🦞", "🐡",
+        // Fantasy / fun
+        "🧙", "🧚", "🧜", "🧞", "🧟", "👾", "🤖", "👻",
+        "🦸", "🦹", "🧙‍♀️", "🧝", "🧝‍♂️", "🧛", "🧜‍♀️", "🧚‍♂️",
+        // Space & nature
+        "🌈", "⭐", "🌙", "☀️", "🌊", "🔥", "❄️", "🌸",
+        "🍀", "🌵", "🌴", "🍄", "🌺", "🌻", "🦋", "🌟",
+        // Food & objects (kids love these)
+        "🍕", "🍦", "🍩", "🎮", "⚽", "🎸", "🎨", "🚀",
+        "🎯", "🎪", "🏆", "💎", "🎭", "🎲", "🎀", "🎈",
+    };
+
+    private static readonly Random _rng = new();
+
+    private void SelectAvatar(string emoji)
+    {
+        _pendingAvatar = emoji;
+        _errorMsg = "";
+    }
+
+    private void PickRandom()
+    {
+        _pendingAvatar = _avatarOptions[_rng.Next(_avatarOptions.Length)];
+        _errorMsg = "";
+    }
+
+    private void CancelSelection()
+    {
+        _pendingAvatar = null;
+        _errorMsg = "";
+    }
+
+    private async Task ConfirmAvatar()
+    {
+        if (string.IsNullOrEmpty(_pendingAvatar)) return;
+        _saving = true; _errorMsg = "";
+        try
+        {
+            // PATCH the child profile avatar via FamilyController
+            if (ChildProfileId > 0)
+            {
+                var resp = await Http.PatchAsJsonAsync(
+                    $"api/family/children/{ChildProfileId}/avatar",
+                    new { avatar = _pendingAvatar });
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _errorMsg = "No se pudo guardar. Intenta de nuevo.";
+                    return;
+                }
+            }
+
+            // Notify parent component
+            if (OnAvatarSelected.HasDelegate)
+                await OnAvatarSelected.InvokeAsync(_pendingAvatar);
+
+            CurrentAvatar  = _pendingAvatar;
+            _pendingAvatar = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[AvatarPicker] Error saving avatar for profile {Id}.", ChildProfileId);
+            _errorMsg = "Error al guardar el avatar.";
+        }
+        finally { _saving = false; }
+    }
+}

@@ -1,0 +1,158 @@
+@* Bloque cognitivo (Protocolo C&W-NM §7.4 paso 2.1, §9.1.5):
+   tarea n-back en tres niveles de 2 min (1-, 2- y 3-back), imágenes familiares, botón
+   grande, sin retroalimentación negativa ni sonidos. Marca cada cambio de nivel y
+   registra cada ensayo (acierto 1/0 y tiempo de reacción). *@
+@using System.Diagnostics
+@using NeuroBlueMinds.Client.Research
+@implements IAsyncDisposable
+
+<div class="rs-task rs-nback">
+    @if (_instruccion)
+    {
+        <div class="rs-nback-instr">
+            <div class="rs-nback-level">Nivel @_nivel</div>
+            <p>@Instruccion(_nivel)</p>
+        </div>
+    }
+    else
+    {
+        <div class="rs-nback-stim">@(_estimulo ?? "")</div>
+        <button class="rs-nback-btn @(_presionado ? "is-pressed" : "")" @onpointerdown="Presionar">
+            ¡Es igual!
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public SessionRecorder? Recorder { get; set; }
+    /// <summary>Segundos por nivel; la práctica de V1 usa menos.</summary>
+    [Parameter] public int SegundosPorNivel { get; set; } = SessionPlan.NivelSegundos;
+
+    private static readonly string[] Imagenes = { "🐶", "🐱", "🍎", "🚗", "⚽", "🌟", "🐟", "🎈" };
+    private const int EstimuloMs = 1500, VentanaMs = 2500, InstruccionMs = 5000;
+    private const double ProbObjetivo = 0.3;
+
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Stopwatch _reloj = new();
+    private readonly Random _rnd = new();
+    private int _nivel = 1;
+    private bool _instruccion = true;
+    private string? _estimulo;
+    private bool _presionado;
+    private long? _presionMs;
+    private long _inicioEnsayoMs;
+    private bool _ensayoActivo;
+
+    protected override void OnInitialized() => _ = Correr(_cts.Token);
+
+    private static string Instruccion(int n) => n switch
+    {
+        1 => "Toca el botón cuando veas la misma imagen que justo antes.",
+        2 => "Ahora toca el botón cuando la imagen sea igual a la de hace dos.",
+        _ => "Ahora toca el botón cuando la imagen sea igual a la de hace tres.",
+    };
+
+    private async Task Correr(CancellationToken ct)
+    {
+        try
+        {
+            _reloj.Start();
+            for (_nivel = 1; _nivel <= 3; _nivel++)
+            {
+                var bloque  = $"cognitivo_n{_nivel}";
+                var finNivelMs = (long)_nivel * SegundosPorNivel * 1000;
+                if (Recorder != null)
+                {
+                    Recorder.Bloque = bloque;
+                    await Recorder.Marcar("nivel_inicio");
+                    await Recorder.Valor("carga_nivel", _nivel, "nivel");
+                }
+
+                _instruccion = true;
+                await InvokeAsync(StateHasChanged);
+                await EsperarHasta(_reloj.ElapsedMilliseconds + InstruccionMs, ct);
+                _instruccion = false;
+
+                var secuencia = new List<string>();
+                int aciertos = 0, omisiones = 0, falsas = 0, rechazos = 0;
+                var rts = new List<long>();
+
+                while (_reloj.ElapsedMilliseconds + VentanaMs <= finNivelMs)
+                {
+                    var i = secuencia.Count;
+                    var objetivo = i >= _nivel && _rnd.NextDouble() < ProbObjetivo;
+                    var estimulo = objetivo
+                        ? secuencia[i - _nivel]
+                        : Elegir(i >= _nivel ? secuencia[i - _nivel] : null);
+                    secuencia.Add(estimulo);
+
+                    _inicioEnsayoMs = _reloj.ElapsedMilliseconds;
+                    _presionMs = null;
+                    _presionado = false;
+                    _ensayoActivo = true;
+                    _estimulo = estimulo;
+                    await InvokeAsync(StateHasChanged);
+
+                    await EsperarHasta(_inicioEnsayoMs + EstimuloMs, ct);
+                    _estimulo = null;
+                    await InvokeAsync(StateHasChanged);
+                    await EsperarHasta(_inicioEnsayoMs + VentanaMs, ct);
+                    _ensayoActivo = false;
+
+                    var respondio = _presionMs.HasValue;
+                    var correcto  = objetivo == respondio;
+                    if (objetivo && respondio) { aciertos++; rts.Add(_presionMs!.Value); }
+                    else if (objetivo) omisiones++;
+                    else if (respondio) falsas++;
+                    else rechazos++;
+
+                    if (Recorder != null)
+                    {
+                        await Recorder.Valor("nback_correcto", correcto ? 1 : 0, "binario");
+                        if (respondio) await Recorder.Valor("rt_ms", _presionMs, "ms");
+                    }
+                }
+
+                if (Recorder != null)
+                {
+                    await Recorder.Valor("nback_aciertos", aciertos, "n");
+                    await Recorder.Valor("nback_omisiones", omisiones, "n");
+                    await Recorder.Valor("nback_falsas_alarmas", falsas, "n");
+                    await Recorder.Valor("nback_rechazos_correctos", rechazos, "n");
+                    if (rts.Count > 0) await Recorder.Valor("nback_rt_medio_ms", Math.Round(rts.Average()), "ms");
+                }
+
+                await EsperarHasta(finNivelMs, ct);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private string Elegir(string? evitar)
+    {
+        string s;
+        do { s = Imagenes[_rnd.Next(Imagenes.Length)]; } while (s == evitar);
+        return s;
+    }
+
+    private Task EsperarHasta(long ms, CancellationToken ct)
+    {
+        var falta = ms - _reloj.ElapsedMilliseconds;
+        return falta > 0 ? Task.Delay((int)falta, ct) : Task.CompletedTask;
+    }
+
+    // Sin retroalimentación de acierto o error: el botón solo se hunde un instante.
+    private void Presionar()
+    {
+        if (!_ensayoActivo || _presionMs.HasValue) return;
+        _presionMs  = _reloj.ElapsedMilliseconds - _inicioEnsayoMs;
+        _presionado = true;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

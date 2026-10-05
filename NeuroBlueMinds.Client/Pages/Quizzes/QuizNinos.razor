@@ -1,0 +1,136 @@
+@page "/quiz/ninos"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@using System.Text.Json
+@implements IDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IDashboardService DashboardService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<QuizNinos> Logger
+
+<PageTitle>Quiz para Niños - BlueMinds</PageTitle>
+
+<div class="quiz-frame-wrapper">
+    <div class="quiz-frame-bar">
+        <button class="back-btn" @onclick='() => Nav.NavigateTo("/quiz")'>
+            <span class="material-symbols-outlined">arrow_back</span> Volver
+        </button>
+        <span class="quiz-frame-title">
+            <span class="material-symbols-outlined">child_care</span> Quiz para Niños
+        </span>
+    </div>
+    <iframe class="quiz-iframe" src="/pages/quiz-ninos.html" title="Quiz para Niños"></iframe>
+</div>
+
+@code {
+    private DotNetObjectReference<QuizNinos>? _objRef;
+    private long   _activeSessionId = 0;
+    private int    _userId          = 0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("setupChildQuizBridge", _objRef);
+
+            var authState   = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out _userId)) return;
+
+            // Load existing incomplete session
+            var session = await DashboardService.GetActiveChildSessionAsync(_userId);
+            if (session != null)
+            {
+                _activeSessionId = session.Id;
+                var payload = JsonSerializer.Serialize(new
+                {
+                    progress = new
+                    {
+                        id                     = session.Id,
+                        current_question_index = session.CurrentQuestionIndex,
+                        is_completed           = session.IsCompleted
+                    }
+                });
+                // Inject into parent window so the iframe can poll for it
+                await JS.InvokeVoidAsync("eval", $"window.childQuizProgress = {payload};");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[QuizNinos] Init error occurred during session initialization");
+        }
+    }
+
+    /// <summary>
+    /// Called by api.js on every verified answer.
+    /// Returns JSON with the active sessionId so the iframe can keep it for the next call.
+    /// </summary>
+    [JSInvokable]
+    public async Task<string> SaveChildResponseFromIframe(
+        long sessionId, int questionIndex, string questionType,
+        string learningStyle, int nivel, string answerJson, bool isCorrect, int responseTimeMs)
+    {
+        try
+        {
+            // Ensure userId is set (may have been resolved in OnAfterRenderAsync already)
+            if (_userId == 0)
+            {
+                var authState   = await AuthStateProvider.GetAuthenticationStateAsync();
+                var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out _userId))
+                    return JsonSerializer.Serialize(new { sessionId = (long)0, error = "unauthorized" });
+            }
+
+            // Create a session on the very first answer if none exists yet
+            if (_activeSessionId == 0)
+            {
+                _activeSessionId = await DashboardService.CreateChildSessionAsync(_userId);
+                Logger.LogInformation("[QuizNinos] Created new session {SessionId} for user {UserId}", _activeSessionId, _userId);
+            }
+
+            await DashboardService.SaveChildResponseAsync(
+                _userId, _activeSessionId,
+                questionIndex, questionType, learningStyle, nivel,
+                answerJson, isCorrect, responseTimeMs);
+
+            // Return sessionId so iframe updates currentSessionId and stops passing 0
+            return JsonSerializer.Serialize(new { sessionId = _activeSessionId });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[QuizNinos] Error saving child response for session {SessionId}", _activeSessionId);
+            return JsonSerializer.Serialize(new { sessionId = _activeSessionId });
+        }
+    }
+
+    [JSInvokable]
+    public async Task<string> CompleteChildQuizFromIframe(string answersJson, int totalTimeSeconds)
+    {
+        try
+        {
+            if (_userId == 0)
+            {
+                var authState   = await AuthStateProvider.GetAuthenticationStateAsync();
+                var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out _userId))
+                    return "{}";
+            }
+
+            var result = await DashboardService.CompleteChildSessionAsync(
+                _userId, _activeSessionId, answersJson, totalTimeSeconds);
+
+            return JsonSerializer.Serialize(result);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[QuizNinos] Error completing child quiz for session {SessionId}", _activeSessionId);
+            return "{}";
+        }
+    }
+
+    public void Dispose() => _objRef?.Dispose();
+}

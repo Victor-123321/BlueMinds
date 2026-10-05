@@ -1,0 +1,552 @@
+@* NeuroBlueMinds.Client/Pages/Quizzes/QuizVark.razor
+   Evaluación oficial VARK usando el HTML que devuelve la API.
+
+   FLUJO:
+   1. Verifica elegibilidad (12+ años) → muestra gate si no cumple
+   2. GET api/vark/questionnaire → recibe el HTML oficial del cuestionario
+   3. Inyecta ese HTML en la página dentro de un <div> con formulario propio
+   4. El usuario llena el cuestionario (opciones V/A/R/K oficiales)
+   5. Al hacer submit, JS captura los campos del form y los manda a api/vark/submit
+   6. Muestra los resultados devueltos por el servidor *@
+@page "/quiz/vark"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@using System.Net
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ILogger<QuizVark> Logger
+
+<PageTitle>Evaluación VARK - BlueMinds</PageTitle>
+
+@* JS helper: captura campos del form VARK y los envía al backend *@
+<script>
+    window.varkHelpers = {
+        // Serializa todos los inputs del form en un objeto { fieldName: value }
+        // Solo incluye los campos seleccionados (checkboxes/radios checked)
+        collectFormFields: function(formId) {
+            var form = document.getElementById(formId);
+            if (!form) return {};
+            var fields = {};
+            var elements = form.elements;
+            for (var i = 0; i < elements.length; i++) {
+                var el = elements[i];
+                if (!el.name) continue;
+                if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) continue;
+                if (el.type === 'submit') continue;
+                fields[el.name] = el.value;
+            }
+            return fields;
+        },
+        // Inyecta HTML en un contenedor y devuelve el id del form dentro del HTML
+        injectHtml: function(containerId, html) {
+            var el = document.getElementById(containerId);
+            if (!el) return null;
+            el.innerHTML = html;
+            // Busca el primer form dentro del HTML inyectado
+            var form = el.querySelector('form');
+            if (form && !form.id) form.id = 'vark-official-form';
+            document.querySelector("#vark-questionnaire-container div.field div.label").textContent = "Nombre"; 
+            return form ? form.id : null;
+        }
+    };
+</script>
+<style>
+/* Contenedor Principal */
+#vark-questionnaire-container {
+    max-width: 800px;
+    margin: 0 auto;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+}
+
+/* Preguntas */
+.VARKQuestion {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.VARKQuestionText {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 18px;
+    color: #1a202c;
+    line-height: 1.5;
+}
+
+/* Respuestas */
+.VARKResponse {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    border: 2px solid #edf2f7;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.VARKResponse:hover {
+    background-color: #f7fafc;
+    border-color: #cbd5e0;
+}
+
+/* Al seleccionar una opción (opcional con JS o :has) */
+.VARKResponse:has(input:checked) {
+    background-color: #ebf8ff;
+    border-color: #4299e1;
+}
+
+/* Input y Label */
+.VARKResponseCheckbox {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+    cursor: pointer;
+}
+
+.VARKResponse label {
+    cursor: pointer;
+    width: 100%;
+    font-size: 1rem;
+}
+
+/* Campo de Nombre */
+.field {
+    margin-bottom: 30px;
+    padding: 0 24px;
+}
+
+.field .label {
+    font-weight: bold;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.field input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+}
+</style>
+
+<div class="min-h-screen font-sans" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);">
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center text-white">
+            <div class="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="font-black text-xl animate-pulse">@loadingMessage</p>
+        </div>
+    </div>
+}
+else if (tooYoung)
+{
+    @* ── Age gate ── *@
+    <div class="flex items-center justify-center min-h-screen px-6">
+        <div class="bg-white rounded-3xl shadow-2xl p-10 max-w-lg w-full text-center">
+            <div class="text-6xl mb-4">🔒</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-3">Evaluación VARK</h2>
+            <p class="text-slate-600 mb-2">La evaluación VARK oficial está validada para mayores de 12 años.</p>
+            @if (unlocksOn.HasValue)
+            {
+                <div class="bg-purple-50 rounded-2xl p-5 my-6">
+                    <p class="text-purple-700 font-bold text-sm">Se desbloqueará el</p>
+                    <p class="text-purple-900 font-black text-2xl">@unlocksOn.Value.ToString("dd 'de' MMMM, yyyy")</p>
+                    <p class="text-purple-600 text-xs mt-1">cuando @childName cumpla 12 años</p>
+                </div>
+            }
+            <p class="text-slate-500 text-sm mb-6">
+                Mientras tanto, el quiz personalizado de BlueMinds está optimizado para tu edad
+                y te dará resultados igual de precisos. 🧠
+            </p>
+            <div class="flex flex-col gap-3">
+                <button @onclick='() => Nav.NavigateTo("/quiz/ninos")'
+                        class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all">
+                    Hacer el Quiz BlueMinds
+                </button>
+                <button @onclick='() => Nav.NavigateTo("/quiz")'
+                        class="w-full text-slate-500 font-bold py-3 hover:text-slate-700 transition-colors">
+                    Volver al selector
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(loadError))
+{
+    @* ── Error loading questionnaire ── *@
+    <div class="flex items-center justify-center min-h-screen px-6">
+        <div class="bg-white rounded-3xl shadow-2xl p-10 max-w-lg w-full text-center">
+            <div class="text-5xl mb-4">⚠️</div>
+            <h2 class="text-xl font-black text-slate-800 mb-3">Cuestionario VARK no disponible</h2>
+            <p class="text-slate-500 text-sm mb-6">@loadError</p>
+            <div class="flex flex-col gap-3">
+                <button @onclick='() => Nav.NavigateTo("/quiz/ninos")'
+                        class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all">
+                    Hacer el Quiz BlueMinds 🧠
+                </button>
+                <button @onclick="LoadQuestionnaire"
+                        class="w-full bg-purple-100 text-purple-700 font-bold py-3 rounded-2xl hover:bg-purple-200 transition-all">
+                    Reintentar VARK
+                </button>
+                <button @onclick='() => Nav.NavigateTo("/quiz")'
+                        class="w-full text-slate-500 font-bold py-3 hover:text-slate-700 transition-colors">
+                    Volver al selector
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else if (showResult && result != null)
+{
+    @* ── Results screen ── *@
+    <div class="flex items-center justify-center min-h-screen px-6 py-12">
+        <div class="max-w-2xl w-full">
+            <div class="text-center text-white mb-8">
+                <div class="text-5xl mb-3">🎉</div>
+                <h1 class="text-4xl font-black mb-2">¡Evaluación completada!</h1>
+                <p class="text-purple-200 text-lg">Tu Neuro-Profile VARK oficial ha sido actualizado</p>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-2xl p-8 mb-6">
+                <h2 class="text-xl font-black text-slate-800 mb-6 text-center">Tus resultados VARK</h2>
+
+                @{ var scoreItems = new[] {
+                    ("Visual",         "👁️",  result.VisualScore,      "bg-blue-100",   "bg-blue-500"),
+                    ("Auditivo",       "👂",  result.AuralScore,       "bg-green-100",  "bg-green-500"),
+                    ("Lecto-Escritor", "📖",  result.ReadWriteScore,   "bg-purple-100", "bg-purple-500"),
+                    ("Kinestésico",    "✋",  result.KinestheticScore, "bg-orange-100", "bg-orange-500"),
+                }; }
+
+                <div class="space-y-4 mb-6">
+                    @foreach (var (label, emoji, score, bg, bar) in scoreItems)
+                    {
+                        var maxScore = Math.Max(1, Math.Max(Math.Max(result.VisualScore, result.AuralScore),
+                                              Math.Max(result.ReadWriteScore, result.KinestheticScore)));
+                        <div class="@bg rounded-2xl p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-black text-slate-800">@emoji @label</span>
+                                <span class="font-black text-slate-700">@score</span>
+                            </div>
+                            <div class="h-3 bg-white/60 rounded-full">
+                                <div class="h-full rounded-full @bar transition-all duration-700"
+                                     style="width: @(score * 100 / maxScore)%"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white text-center">
+                    <p class="text-purple-200 text-sm font-bold mb-1">Estilo dominante</p>
+                    <p class="text-3xl font-black">@result.PlatformStyleLabel</p>
+                    @if (!string.IsNullOrEmpty(result.VarkResultId) && result.VarkResultId != "api_test")
+                    {
+                        <p class="text-purple-300 text-xs mt-2 italic">Resultado oficial: "@result.VarkResultId"</p>
+                    }
+                    <p class="text-purple-200 text-sm mt-2">
+                        Tu perfil ha sido actualizado. Los juegos y actividades se adaptarán a tu estilo.
+                    </p>
+                </div>
+            </div>
+
+            <button @onclick='() => Nav.NavigateTo("/dashboard")'
+                    class="w-full bg-white text-purple-700 font-black py-4 rounded-2xl hover:bg-purple-50 transition-all">
+                Ver mi Dashboard actualizado →
+            </button>
+        </div>
+    </div>
+}
+else if (questionnaireHtml != null)
+{
+    @* ── Cuestionario oficial VARK (HTML de la API) ── *@
+    <div class="max-w-3xl mx-auto px-4 py-10">
+
+        @* Header de progreso / branding *@
+        <div class="text-center text-white mb-8">
+            <div class="inline-flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full text-sm font-bold mb-4 backdrop-blur">
+                <span>🎓</span> Evaluación VARK Oficial
+            </div>
+            <h1 class="text-3xl font-black">@childName</h1>
+            <p class="text-purple-200 mt-1">Responde con honestidad — no hay respuestas correctas o incorrectas</p>
+        </div>
+
+        @* Contenedor del HTML oficial + form wrapper *@
+        <div class="bg-white rounded-3xl shadow-2xl p-6 sm:p-10">
+
+            @if (!string.IsNullOrEmpty(submitError))
+            {
+                <div class="bg-red-50 text-red-700 text-sm font-bold p-4 rounded-xl mb-6">
+                    @submitError
+                </div>
+            }
+
+            @* Aquí se inyecta el HTML oficial del cuestionario VARK.
+               El HTML contiene las preguntas, opciones checkbox/radio y campos ocultos.
+               Lo rodeamos con nuestro propio form para interceptar el submit. *@
+            <div id="vark-questionnaire-container">
+                @* El HTML oficial se inyecta via JS en OnAfterRenderAsync *@
+            </div>
+
+            @* Botón de submit propio (el del HTML de VARK puede no tener el estilo deseado) *@
+            <div class="mt-8 pt-6 border-t border-slate-100">
+                <button @onclick="HandleVarkSubmit"
+                        disabled="@isSubmitting"
+                        class="w-full bg-purple-600 text-white font-black py-4 rounded-2xl hover:bg-purple-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-3">
+                    @if (isSubmitting)
+                    {
+                        <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    }
+                    <span>@(isSubmitting ? "Enviando resultados..." : "Ver mis resultados VARK ✨")</span>
+                </button>
+                <p class="text-slate-400 text-xs text-center mt-3">
+                    Al enviar, tus respuestas serán analizadas por el sistema VARK oficial.
+                </p>
+            </div>
+        </div>
+
+    </div>
+}
+
+</div>
+
+@code {
+    private bool      isLoading    = true;
+    private bool      isSubmitting = false;
+    private bool      tooYoung     = false;
+    private bool      showResult   = false;
+    private string    childName    = "el niño";
+    private string    loadingMessage = "Verificando elegibilidad...";
+    private string    loadError    = "";
+    private string    submitError  = "";
+    private int       childUserId  = 0;
+    private DateOnly? unlocksOn    = null;
+    private string?   questionnaireHtml = null;
+    private LocalVarkResultDto? result;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await InitAsync();
+    }
+
+    private async Task InitAsync()
+    {
+        isLoading = true; loadError = ""; StateHasChanged();
+        try
+        {
+            var auth      = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userIdStr = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            childName     = auth.User.FindFirst(ClaimTypes.Name)?.Value ?? "el niño";
+
+            if (!int.TryParse(userIdStr, out childUserId))
+            {
+                Nav.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+
+            // 1. Verificar elegibilidad
+            var eligRes = await Http.GetAsync($"api/vark/eligibility/{childUserId}");
+            if (eligRes.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Nav.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+
+            if (eligRes.IsSuccessStatusCode)
+            {
+                var elig = await eligRes.Content.ReadFromJsonAsync<LocalVarkEligibilityDto>();
+                if (elig != null && !elig.Eligible)
+                {
+                    tooYoung  = true;
+                    unlocksOn = elig.UnlocksOn;
+                    isLoading = false;
+                    StateHasChanged();
+                    return;
+                }
+            }
+
+            // 2. Cargar el cuestionario oficial
+            await LoadQuestionnaire();
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Error al iniciar la evaluación: {ex.Message}";
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadQuestionnaire()
+    {
+        isLoading      = true;
+        loadError      = "";
+        loadingMessage = "Cargando cuestionario oficial VARK...";
+        StateHasChanged();
+
+        try
+        {
+            // El servidor hace la llamada a VARK API (las credenciales nunca llegan al cliente)
+            var res = await Http.GetAsync("api/vark/questionnaire?lang=es");
+
+            if (res.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Nav.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+            if (!res.IsSuccessStatusCode)
+            {
+                var err = await res.Content.ReadAsStringAsync();
+                // 503/500 from our server usually means the external vark-learn.com API is down.
+                loadError = res.StatusCode == HttpStatusCode.ServiceUnavailable || (int)res.StatusCode == 500
+                    ? "El servicio VARK oficial está temporalmente no disponible (sitio externo). Intenta más tarde o usa el Quiz BlueMinds."
+                    : "No se pudo cargar el cuestionario VARK. Verifica la conexión e intenta de nuevo.";
+                Logger.LogError("[QuizVark] Questionnaire error {StatusCode}: {Error}", (int)res.StatusCode, err);
+                return;
+            }
+
+            var payload = await res.Content.ReadFromJsonAsync<QuestionnaireResponse>();
+            questionnaireHtml = payload?.Html;
+
+            if (string.IsNullOrWhiteSpace(questionnaireHtml))
+            {
+                loadError = "El cuestionario llegó vacío desde el servidor. Intenta de nuevo.";
+                return;
+            }
+
+            isLoading = false;
+            StateHasChanged();
+
+            // Inyectar el HTML oficial en el contenedor via JS
+            // (necesitamos el DOM renderizado, por eso usamos InvokeAsync después de StateHasChanged)
+            await Task.Delay(50); // Pequeño delay para que el DOM se actualice
+            await JS.InvokeVoidAsync(
+                "varkHelpers.injectHtml",
+                "vark-questionnaire-container",
+                questionnaireHtml);
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Error cargando cuestionario: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleVarkSubmit()
+    {
+        submitError  = "";
+        isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            // Capturar todos los campos del formulario VARK mediante JS
+            Dictionary<string, string>? formFields;
+            try
+            {
+                formFields = await JS.InvokeAsync<Dictionary<string, string>>(
+                    "varkHelpers.collectFormFields",
+                    "vark-official-form");
+            }
+            catch
+            {
+                // Fallback: buscar el form dentro del contenedor
+                formFields = await JS.InvokeAsync<Dictionary<string, string>>(
+                    "eval",
+                    "(function(){ var f=document.querySelector('#vark-questionnaire-container form'); if(!f) return {}; var d={}; Array.from(f.elements).forEach(function(e){ if(!e.name) return; if((e.type==='checkbox'||e.type==='radio')&&!e.checked) return; if(e.type==='submit') return; d[e.name]=e.value; }); return d; })()");
+            }
+
+            if (formFields == null || formFields.Count == 0)
+            {
+                submitError = "Por favor responde al menos una pregunta antes de enviar.";
+                return;
+            }
+
+            // Verificar que hay al menos algunas respuestas VARK (campos que empiezan con C)
+            var varkAnswers = formFields.Count(kv => kv.Key.StartsWith("C") && kv.Key.Length >= 3);
+            if (varkAnswers == 0)
+            {
+                submitError = "No se detectaron respuestas. Asegúrate de seleccionar opciones en el cuestionario.";
+                return;
+            }
+
+            // Enviar al servidor para que éste reenvíe a la API VARK
+            var payload  = new { childUserId, formFields };
+            var response = await Http.PostAsJsonAsync("api/vark/submit", payload);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Nav.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                submitError = response.StatusCode == HttpStatusCode.BadRequest
+                    ? "Datos inválidos. Revisa que hayas respondido todas las preguntas."
+                    : "Error al procesar resultados. Intenta de nuevo.";
+                Logger.LogError("[QuizVark] Submit error {StatusCode}: {Response}", (int)response.StatusCode, body);
+                return;
+            }
+
+            result     = await response.Content.ReadFromJsonAsync<LocalVarkResultDto>();
+            showResult = result != null;
+        }
+        catch (Exception ex)
+        {
+            submitError = "Error de conexión. Intenta de nuevo.";
+            Logger.LogError(ex, "[QuizVark] Exception occurred during VARK form submission");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Local DTOs ────────────────────────────────────────────────────────────
+
+    private class LocalVarkEligibilityDto
+    {
+        public bool      Eligible  { get; set; }
+        public int?      AgeYears  { get; set; }
+        public DateOnly? UnlocksOn { get; set; }
+        public string    Reason    { get; set; } = "";
+    }
+
+    private class LocalVarkResultDto
+    {
+        public int    VisualScore      { get; set; }
+        public int    AuralScore       { get; set; }
+        public int    ReadWriteScore   { get; set; }
+        public int    KinestheticScore { get; set; }
+        public string DominantStyle    { get; set; } = "";
+        public string? VarkResultId    { get; set; }   // el label textual oficial: "mild Visual"
+
+        public string PlatformStyleLabel => DominantStyle.Split(',').First() switch
+        {
+            "visual"         => "Visual",
+            "auditivo"       => "Auditivo",
+            "lectoescritura" => "Lecto-Escritor",
+            "kinestesico"    => "Kinestésico",
+            _                => DominantStyle
+        };
+    }
+
+    private class QuestionnaireResponse
+    {
+        public string Html { get; set; } = "";
+    }
+}

@@ -1,0 +1,213 @@
+@* NeuroBlueMinds.Client/Layout/MainLayout.razor
+   CAMBIOS:
+   ✓ Botón "Cambiar niño" visible en la nav cuando un padre tiene un hijo activo
+   ✓ Banner de impersonación para admins (naranja) con botón para salir
+   ✓ Link a /admin en nav para admins
+   ✓ LoadUserAsync también lee activeChildName del localStorage *@
+@inherits LayoutComponentBase
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="min-h-screen flex flex-col">
+
+    @* ── Impersonation banner (admin only) ── *@
+    @if (isImpersonating)
+    {
+        <div class="bg-amber-500 text-white px-6 py-2 flex items-center justify-between text-sm z-50">
+            <span class="font-bold">
+                ⚡ Modo admin: actuando como <strong>@impersonatingName</strong>
+                (@impersonatingRole)
+            </span>
+            <button @onclick="StopImpersonation"
+                    class="bg-white/20 text-white font-black text-xs px-3 py-1 rounded-lg hover:bg-white/30 transition-all">
+                Salir
+            </button>
+        </div>
+    }
+
+    @* ── Top Navigation ── *@
+    <AuthorizeView>
+        <Authorized>
+            <nav class="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-b border-slate-100 shadow-sm"
+                 style="@(isImpersonating ? "top: 36px;" : "top: 0;")">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+
+                    @* Logo *@
+                    <button @onclick='() => Nav.NavigateTo("/dashboard")'
+                            class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity shrink-0">
+                        <img src="android-chrome-512x512.png" class="w-8 h-8 rounded-lg" alt="BlueMinds" />
+                        <span class="font-black text-blue-700 text-lg hidden sm:block">BlueMinds</span>
+                    </button>
+
+                    @* Role-aware nav links *@
+                    <div class="flex items-center gap-0.5 sm:gap-1 flex-1 justify-center">
+                        @if (role == "child")
+                        {
+                            <NavItem Href="/dashboard" Icon="home"       Label="Inicio"     />
+                            <NavItem Href="/quiz"      Icon="assignment" Label="Evaluación" />
+                            <NavItem Href="/perfil"    Icon="person"     Label="Perfil"     />
+                        }
+                        else if (role == "parent")
+                        {
+                            <NavItem Href="/dashboard" Icon="home"       Label="Inicio"    />
+                            <NavItem Href="/progreso"  Icon="analytics"  Label="Progreso"  />
+                            <NavItem Href="/quiz"      Icon="assignment" Label="Quiz"      />
+                            <NavItem Href="/family"    Icon="group"      Label="Familia"   />
+                            <NavItem Href="/perfil"    Icon="person"     Label="Perfil"    />
+                        }
+                        else if (role is "specialist")
+                        {
+                            <NavItem Href="/dashboard" Icon="home"       Label="Inicio"   />
+                            <NavItem Href="/progreso"  Icon="analytics"  Label="Progreso" />
+                            <NavItem Href="/investigacion" Icon="science" Label="Investigación" />
+                            <NavItem Href="/perfil"    Icon="person"     Label="Perfil"   />
+                        }
+                        else if (role == "admin")
+                        {
+                            <NavItem Href="/dashboard" Icon="home"                Label="Inicio"  />
+                            <NavItem Href="/admin"     Icon="admin_panel_settings" Label="Admin"  />
+                            <NavItem Href="/investigacion" Icon="science"          Label="Investigación" />
+                            <NavItem Href="/perfil"    Icon="person"              Label="Perfil"  />
+                        }
+                    </div>
+
+                    @* Right side *@
+                    <div class="flex items-center gap-2 shrink-0">
+
+                          @if (role == "parent")
+                        {
+                            <button @onclick='() => Nav.NavigateTo("/family")'
+                                    title="Cambiar de niño"
+                                    class="hidden sm:flex items-center gap-1.5 bg-blue-50 text-blue-700 font-black text-xs px-3 py-2 rounded-xl border-2 border-blue-200 hover:bg-blue-100 transition-all">
+                                <span class="material-symbols-outlined" style="font-size:16px;">swap_horiz</span>
+                                <span class="max-w-[80px] truncate">@activeChildName</span>
+                            </button>
+                            @* Mobile: just icon *@
+                            <button @onclick='() => Nav.NavigateTo("/family")'
+                                    title="Cambiar de niño"
+                                    class="sm:hidden flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-700 rounded-xl border-2 border-blue-200 hover:bg-blue-100 transition-all">
+                                <span class="material-symbols-outlined" style="font-size:18px;">group</span>
+                            </button>
+                        }
+
+                        @* User avatar *@
+                        <div class="hidden sm:flex items-center gap-2 text-sm font-bold text-slate-700">
+                            @if (!string.IsNullOrEmpty(userPicture))
+                            {
+                                <img src="@userPicture" class="w-8 h-8 rounded-full object-cover" alt="@userName" />
+                            }
+                            else
+                            {
+                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-blue-600" style="font-size:18px;">person</span>
+                                </div>
+                            }
+                            <span class="max-w-[100px] truncate">@userName</span>
+                        </div>
+
+                        @* Logout *@
+                        <button @onclick="Logout"
+                                class="flex items-center gap-1 text-slate-400 hover:text-red-500 transition-colors font-bold text-sm px-2 py-1 rounded-lg hover:bg-red-50">
+                            <span class="material-symbols-outlined" style="font-size:20px;">logout</span>
+                            <span class="hidden sm:inline">Salir</span>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+            @* Spacer for fixed nav (+ impersonation banner height if active) *@
+            <div style="height: @(isImpersonating ? "100px" : "64px");"></div>
+        </Authorized>
+    </AuthorizeView>
+
+    @* ── Page content ── *@
+    <main class="flex-1">
+        @Body
+    </main>
+
+    @* ── Sensory Settings Panel ── *@
+    <SensorySettings />
+
+</div>
+
+@code {
+    private string role              = "child";
+    private string userName          = "";
+    private string userPicture       = "";
+    private string activeChildName   = "";
+    private bool   isImpersonating   = false;
+    private string impersonatingName = "";
+    private string impersonatingRole = "";
+
+    protected override void OnInitialized()
+    {
+        _ = LoadUserAsync();
+    }
+
+    private async Task LoadUserAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+
+            role        = user.FindFirst(ClaimTypes.Role)?.Value ?? "child";
+            userName    = user.FindFirst(ClaimTypes.Name)?.Value ?? "";
+            userPicture = user.FindFirst("picture")?.Value ?? "";
+
+            // Read active child name for the switch-child button
+            if (role == "parent")
+                activeChildName = await JS.InvokeAsync<string?>("localStorage.getItem", "activeChildName") ?? "";
+
+            // Check if admin is currently impersonating
+            var impToken = await JS.InvokeAsync<string?>("localStorage.getItem", "impersonationToken");
+            if (!string.IsNullOrEmpty(impToken))
+            {
+                isImpersonating   = true;
+                impersonatingName = await JS.InvokeAsync<string?>("localStorage.getItem", "impersonatingName") ?? "";
+                impersonatingRole = await JS.InvokeAsync<string?>("localStorage.getItem", "impersonatingRole") ?? "";
+            }
+
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private async Task StopImpersonation()
+    {
+        var adminToken = await JS.InvokeAsync<string?>("localStorage.getItem", "adminToken");
+        if (!string.IsNullOrEmpty(adminToken))
+            await JS.InvokeVoidAsync("localStorage.setItem", "authToken", adminToken);
+
+        // Clear all impersonation-related keys
+        await JS.InvokeVoidAsync("localStorage.removeItem", "impersonationToken");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "impersonatingName");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "impersonatingRole");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "adminToken");
+
+        // Clear child-related keys set during impersonation of parent user
+        await JS.InvokeVoidAsync("localStorage.removeItem", "childToken");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildId");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildName");
+
+        isImpersonating = false;
+        Nav.NavigateTo("/admin", forceLoad: true);
+    }
+
+    private async Task Logout()
+    {
+        var keysToRemove = new[]
+        {
+            "authToken", "childToken", "parentToken",
+            "parentEmail", "parentName", "parentPicture",
+            "activeChildId", "activeChildName", "cachedChildren",
+            "lastActiveAt", "locale", "loginMethod",
+            "impersonationToken", "impersonatingName", "impersonatingRole", "adminToken"
+        };
+        foreach (var key in keysToRemove)
+            await JS.InvokeVoidAsync("localStorage.removeItem", key);
+
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

@@ -1,0 +1,429 @@
+@page "/progreso"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@using Microsoft.Extensions.Logging
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject ILogger<Progreso> Logger
+
+<PageTitle>Mi Progreso - BlueMinds</PageTitle>
+
+@if (isLoading)
+{
+    <div class="min-h-screen bg-gradient-to-br from-[#0066CC] to-[#00B4D8] flex items-center justify-center">
+        <div class="text-center text-white">
+            <div class="w-20 h-20 border-8 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="font-black text-xl animate-pulse">Analizando tu progreso...</p>
+        </div>
+    </div>
+}
+else if (profile == null)
+{
+    <div class="min-h-screen bg-gradient-to-br from-[#0066CC] to-[#00B4D8] flex items-center justify-center p-6">
+        <div class="bg-white rounded-3xl p-10 text-center max-w-md shadow-2xl">
+            <span class="material-symbols-outlined text-6xl text-blue-400 mb-4 block">assignment</span>
+            <h2 class="text-2xl font-black text-slate-800 mb-3">¡Aún no hay datos!</h2>
+            <p class="text-slate-500 mb-6">Completa el quiz y juega algunas actividades para ver tu análisis personalizado.</p>
+            <button @onclick='() => Nav.NavigateTo("/quiz")'
+                    class="bg-blue-600 text-white font-black px-8 py-3 rounded-2xl hover:bg-blue-700 transition-all">
+                Ir al Quiz
+            </button>
+        </div>
+    </div>
+}
+else
+{
+<div class="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 pb-24">
+
+    <!-- ── Header ── -->
+    <div class="bg-gradient-to-r from-[#0066CC] to-[#00B4D8] pt-10 pb-20 px-6">
+        <div class="max-w-6xl mx-auto">
+            <h1 class="text-white text-4xl font-black mb-1">📊 Mi Progreso</h1>
+            <p class="text-blue-100 text-lg">Análisis neuroeducativo personalizado de @(profile.ChildName)</p>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-6 -mt-12 space-y-8">
+
+        <!-- ── Overall Score Card ── -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white rounded-3xl p-6 shadow-xl text-center">
+                <div class="text-4xl font-black text-blue-600">@profile.OverallScore<span class="text-xl text-slate-400">/100</span></div>
+                <div class="text-slate-500 font-bold text-sm mt-1">Score Global</div>
+            </div>
+            <div class="bg-white rounded-3xl p-6 shadow-xl text-center">
+                <div class="text-4xl font-black @GetStyleColor(profile.DominantStyle)">@GetStyleEmoji(profile.DominantStyle)</div>
+                <div class="text-slate-500 font-bold text-sm mt-1">@GetStyleName(profile.DominantStyle)</div>
+                <div class="text-xs text-slate-400">Estilo dominante</div>
+            </div>
+            <div class="bg-white rounded-3xl p-6 shadow-xl text-center">
+                <div class="text-4xl font-black text-purple-600">Nivel @profile.SuggestedLevel</div>
+                <div class="text-slate-500 font-bold text-sm mt-1">Nivel Sugerido</div>
+            </div>
+            <div class="bg-white rounded-3xl p-6 shadow-xl text-center">
+                @{var trendIcon = profile.ProgressTrend switch { "improving" => "trending_up", "needs_attention" => "trending_down", _ => "trending_flat" };}
+                @{var trendColor = profile.ProgressTrend switch { "improving" => "text-green-500", "needs_attention" => "text-red-400", _ => "text-yellow-500" };}
+                <span class="material-symbols-outlined text-4xl @trendColor">@trendIcon</span>
+                <div class="text-slate-500 font-bold text-sm mt-1">
+                    @(profile.ProgressTrend == "improving" ? "En progreso" : profile.ProgressTrend == "needs_attention" ? "Necesita atención" : "Estable")
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Style Breakdown ── -->
+        @if (profile.StyleBreakdown?.Any() == true)
+        {
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-blue-500">bar_chart</span>
+                Desempeño por Estilo de Aprendizaje
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                @foreach (var style in profile.StyleBreakdown)
+                {
+                    <div class="bg-slate-50 rounded-2xl p-5">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="font-black text-slate-700 flex items-center gap-2">
+                                <span class="text-2xl">@GetStyleEmoji(style.Style)</span>
+                                @GetStyleName(style.Style)
+                            </span>
+                            <span class="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded-full">Nivel @style.Level</span>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-xs text-slate-500 font-bold">
+                                <span>Quiz</span><span>@style.QuizAccuracy.ToString("F0")%</span>
+                            </div>
+                            <div class="h-3 bg-slate-200 rounded-full">
+                                <div class="h-full rounded-full bg-gradient-to-r @GetStyleGradient(style.Style) transition-all duration-700"
+                                     style="width: @(Math.Min(style.QuizAccuracy, 100))%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-slate-500 font-bold">
+                                <span>Juegos (@style.GamesPlayed jugados)</span><span>@style.GameAccuracy.ToString("F0")%</span>
+                            </div>
+                            <div class="h-3 bg-slate-200 rounded-full">
+                                <div class="h-full rounded-full bg-gradient-to-r @GetStyleGradient(style.Style) opacity-60 transition-all duration-700"
+                                     style="width: @(Math.Min(style.GameAccuracy, 100))%"></div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+        }
+
+        <!-- ── Strengths & Challenges ── -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            @if (profile.Strengths?.Any() == true)
+            {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-green-500">stars</span> Fortalezas
+                </h2>
+                <ul class="space-y-3">
+                    @foreach (var s in profile.Strengths)
+                    {
+                        <li class="flex items-start gap-3">
+                            <span class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                                <span class="material-symbols-outlined text-green-600" style="font-size:14px">check</span>
+                            </span>
+                            <span class="text-slate-700 text-sm leading-relaxed">@s</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+            }
+            @if (profile.Challenges?.Any() == true)
+            {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-orange-400">target</span> Áreas de Oportunidad
+                </h2>
+                <ul class="space-y-3">
+                    @foreach (var c in profile.Challenges)
+                    {
+                        <li class="flex items-start gap-3">
+                            <span class="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                                <span class="material-symbols-outlined text-orange-500" style="font-size:14px">arrow_forward</span>
+                            </span>
+                            <span class="text-slate-700 text-sm leading-relaxed">@c</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+            }
+        </div>
+
+        <!-- ── Monthly Roadmap ── -->
+        @if (profile.Roadmap?.Any() == true)
+        {
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-purple-500">map</span>
+                Plan del Mes — Tu Hoja de Ruta
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                @foreach (var milestone in profile.Roadmap.OrderBy(r => r.Week))
+                {
+                    <div class="@(milestone.Completed ? "bg-green-50 border-green-200" : "bg-slate-50 border-slate-200") border-2 rounded-2xl p-5 relative">
+                        <div class="absolute -top-3 left-4">
+                            <span class="bg-blue-600 text-white text-xs font-black px-3 py-1 rounded-full">Semana @milestone.Week</span>
+                        </div>
+                        <div class="mt-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-lg">@GetStyleEmoji(milestone.Style)</span>
+                                <span class="text-xs @GetDifficultyColor(milestone.Difficulty) font-bold px-2 py-0.5 rounded-full bg-slate-100">
+                                    @GetDifficultyLabel(milestone.Difficulty)
+                                </span>
+                            </div>
+                            <h3 class="font-black text-slate-800 text-sm mb-2">@milestone.Title</h3>
+                            <p class="text-slate-500 text-xs leading-relaxed">@milestone.Description</p>
+                        </div>
+                        @if (milestone.Completed)
+                        {
+                            <div class="absolute top-2 right-2">
+                                <span class="material-symbols-outlined text-green-500">check_circle</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+        }
+
+        <!-- ── Weekly Plan ── -->
+        @if (profile.WeeklyPlan?.Any() == true)
+        {
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-blue-500">calendar_month</span>
+                Plan Semanal de Actividades
+            </h2>
+            <div class="space-y-3">
+                @foreach (var act in profile.WeeklyPlan)
+                {
+                    <div class="flex items-center gap-4 bg-slate-50 rounded-2xl p-4">
+                        <div class="w-20 shrink-0 text-center">
+                            <span class="text-xs font-black text-blue-600 uppercase tracking-wide">@act.Day</span>
+                        </div>
+                        <div class="w-8 text-center text-xl shrink-0">@GetStyleEmoji(act.Style)</div>
+                        <div class="flex-1">
+                            <p class="text-slate-700 font-medium text-sm">@act.Activity</p>
+                        </div>
+                        <div class="shrink-0 text-right">
+                            <span class="text-xs text-slate-400 font-bold">@act.DurationMin min</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+        }
+
+        <!-- ── Parent Tips ── -->
+        @if (profile.ParentTips?.Any() == true)
+        {
+        <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-8 shadow-xl text-white">
+            <h2 class="text-2xl font-black mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined">family_restroom</span>
+                Consejos para Papá y Mamá
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                @foreach (var tip in profile.ParentTips)
+                {
+                    <div class="bg-white/15 rounded-2xl p-5 backdrop-blur">
+                        <span class="material-symbols-outlined text-blue-200 mb-2 block">lightbulb</span>
+                        <p class="text-blue-50 text-sm leading-relaxed">@tip</p>
+                    </div>
+                }
+            </div>
+        </div>
+        }
+
+        <!-- ── Game Recommendations ── -->
+        @if (profile.GameRecommendations?.Any() == true)
+        {
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-indigo-500">videogame_asset</span>
+                Juegos Recomendados
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                @foreach (var rec in profile.GameRecommendations)
+                {
+                    <div class="bg-indigo-50 rounded-2xl p-5 border border-indigo-100">
+                        <span class="material-symbols-outlined text-indigo-400 mb-2 block">play_circle</span>
+                        <p class="text-slate-700 text-sm leading-relaxed">@rec</p>
+                    </div>
+                }
+            </div>
+        </div>
+        }
+
+        <!-- ── Game Stats Table ── -->
+        @if (profile.GameStats?.Any() == true)
+        {
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-slate-500">analytics</span>
+                Estadísticas por Juego
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-slate-400 uppercase text-xs font-black tracking-wide border-b border-slate-100">
+                            <th class="pb-3 pr-4">Juego</th>
+                            <th class="pb-3 pr-4">Estilo</th>
+                            <th class="pb-3 pr-4 text-right">Jugadas</th>
+                            <th class="pb-3 pr-4 text-right">Mejor Score</th>
+                            <th class="pb-3 pr-4 text-right">Precisión</th>
+                            <th class="pb-3 text-center">Tendencia</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50">
+                        @foreach (var g in profile.GameStats.OrderByDescending(x => x.TimesPlayed))
+                        {
+                            <tr class="hover:bg-slate-50">
+                                <td class="py-3 pr-4 font-bold text-slate-700">@g.GameId.Replace("-", " ")</td>
+                                <td class="py-3 pr-4">
+                                    <span class="flex items-center gap-1">
+                                        @GetStyleEmoji(g.Style)
+                                        <span class="text-slate-500">@GetStyleName(g.Style)</span>
+                                    </span>
+                                </td>
+                                <td class="py-3 pr-4 text-right font-bold text-slate-700">@g.TimesPlayed</td>
+                                <td class="py-3 pr-4 text-right font-bold text-slate-700">@g.BestScore</td>
+                                <td class="py-3 pr-4 text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        <div class="w-16 bg-slate-100 rounded-full h-2">
+                                            <div class="h-full rounded-full @GetStyleGradient(g.Style) bg-gradient-to-r"
+                                                 style="width: @(Math.Min(g.AvgAccuracy, 100))%"></div>
+                                        </div>
+                                        <span class="font-bold text-slate-700 w-10 text-right">@g.AvgAccuracy.ToString("F0")%</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 text-center">
+                                    @{ var ti = g.Trend == "improving" ? "trending_up" : g.Trend == "declining" ? "trending_down" : "trending_flat";
+                                       var tc = g.Trend == "improving" ? "text-green-500" : g.Trend == "declining" ? "text-red-400" : "text-yellow-500"; }
+                                    <span class="material-symbols-outlined @tc" style="font-size:20px">@ti</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        }
+
+        <!-- ── Session History ── -->
+        @if (history?.Any() == true)
+        {
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-slate-500">history</span>
+                Historial de Sesiones
+            </h2>
+            <div class="space-y-3">
+                @foreach (var h in history)
+                {
+                    <div class="flex items-center gap-4 bg-slate-50 rounded-2xl p-4">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center @(h.Type == "Niños" ? "bg-blue-100" : "bg-purple-100")">
+                            <span class="material-symbols-outlined @(h.Type == "Niños" ? "text-blue-500" : "text-purple-500")" style="font-size:20px">
+                                @(h.Type == "Niños" ? "child_care" : "family_restroom")
+                            </span>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-bold text-slate-700 text-sm">Quiz @h.Type</p>
+                            <p class="text-slate-400 text-xs">@h.CreatedAt.ToString("dd MMM yyyy")</p>
+                        </div>
+                        @if (h.Score.HasValue)
+                        {
+                            <div class="text-right">
+                                <span class="font-black text-slate-700">@h.Score pts</span>
+                                @if (!string.IsNullOrEmpty(h.BestStyle))
+                                {
+                                    <p class="text-xs text-slate-400">@GetStyleEmoji(h.BestStyle) @GetStyleName(h.BestStyle)</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+        }
+
+        <div class="pb-8"></div>
+    </div>
+</div>
+}
+
+@code {
+    private bool isLoading = true;
+    private NeuroprofileAnalysisDto? profile;
+    private List<NeuroBlueMinds.Shared.DTOs.SessionHistory>? history;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var auth      = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userIdStr = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userName  = auth.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Explorador";
+
+            if (!int.TryParse(userIdStr, out var userId))
+            { Nav.NavigateTo("/login"); return; }
+
+            var roadmapTask = Http.GetFromJsonAsync<NeuroprofileAnalysisDto>(
+                $"api/dashboard/roadmap/{userId}/{Uri.EscapeDataString(userName)}");
+            var historyTask = Http.GetFromJsonAsync<List<SessionHistory>>(
+                $"api/dashboard/history/{userId}");
+
+            await Task.WhenAll(roadmapTask, historyTask);
+            profile = await roadmapTask;
+            history = await historyTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load progress data");
+        }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    string GetStyleName(string? s) => s?.ToLower() switch
+    {
+        "visual"         => "Visual",
+        "auditivo"       => "Auditivo",
+        "kinestesico"    => "Kinestésico",
+        "lectoescritura" => "Lectoescritura",
+        _                => s ?? ""
+    };
+    string GetStyleEmoji(string? s) => s?.ToLower() switch
+    {
+        "visual"         => "👁️",
+        "auditivo"       => "👂",
+        "kinestesico"    => "✋",
+        "lectoescritura" => "📖",
+        _                => "🧠"
+    };
+    string GetStyleColor(string? s) => s?.ToLower() switch
+    {
+        "visual"         => "text-blue-600",
+        "auditivo"       => "text-green-600",
+        "kinestesico"    => "text-orange-500",
+        "lectoescritura" => "text-purple-600",
+        _                => "text-blue-600"
+    };
+    string GetStyleGradient(string? s) => s?.ToLower() switch
+    {
+        "visual"         => "from-blue-400 to-blue-600",
+        "auditivo"       => "from-green-400 to-green-600",
+        "kinestesico"    => "from-orange-400 to-orange-600",
+        "lectoescritura" => "from-purple-400 to-purple-600",
+        _                => "from-blue-400 to-blue-600"
+    };
+    string GetDifficultyLabel(string? d) => d switch { "easy" => "Fácil", "hard" => "Difícil", _ => "Medio" };
+    string GetDifficultyColor(string? d)  => d switch { "easy" => "text-green-600", "hard" => "text-red-500", _ => "text-yellow-600" };
+}

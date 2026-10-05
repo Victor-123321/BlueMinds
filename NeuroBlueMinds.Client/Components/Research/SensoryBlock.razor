@@ -1,0 +1,88 @@
+@* Bloque sensorial (Protocolo C&W-NM §7.4 paso 2.2, §9.1.5): tres niveles de 2 min con
+   audio calibrado y patrones visuales lentos (ver wwwroot/js/research.js). El niño
+   puede pausar en cualquier momento con el botón; el personal reanuda. *@
+@using NeuroBlueMinds.Client.Research
+@inject IJSRuntime JS
+@inject ResearchStore Store
+@implements IAsyncDisposable
+
+<div class="rs-task rs-sensory">
+    <canvas @ref="_canvas" class="rs-sensory-canvas"></canvas>
+    @if (_pausado)
+    {
+        <div class="rs-sensory-paused">
+            <p>Pausa. Respira tranquilo.</p>
+            <button class="rs-btn rs-btn-quiet" @onclick="Reanudar">Reanudar (personal)</button>
+        </div>
+    }
+    else
+    {
+        <button class="rs-pause-btn" @onclick="PausaNino">✋ Pausa</button>
+    }
+</div>
+
+@code {
+    [Parameter] public SessionRecorder? Recorder { get; set; }
+    [Parameter] public int SegundosPorNivel { get; set; } = SessionPlan.NivelSegundos;
+
+    private ElementReference _canvas;
+    private readonly CancellationTokenSource _cts = new();
+    private double[] _ganancias = (double[])ResearchStore.GananciasPorDefecto.Clone();
+    private int _nivel;
+    private bool _pausado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _ganancias = await Store.GananciasAsync();
+        _ = Correr(_cts.Token);
+    }
+
+    private async Task Correr(CancellationToken ct)
+    {
+        try
+        {
+            for (var n = 1; n <= 3; n++)
+            {
+                _nivel = n;
+                if (Recorder != null)
+                {
+                    Recorder.Bloque = $"sensorial_n{n}";
+                    await Recorder.Marcar("nivel_inicio");
+                    await Recorder.Valor("carga_nivel", n, "nivel");
+                    await Recorder.Valor("sensorial_ganancia", _ganancias[n - 1], "relativa");
+                }
+                if (!_pausado) await Iniciar();
+                await Task.Delay(SegundosPorNivel * 1000, ct);
+            }
+            await JS.InvokeVoidAsync("nbmResearch.sensoryStop");
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private Task Iniciar() =>
+        JS.InvokeVoidAsync("nbmResearch.sensoryStart", _canvas, _nivel, _ganancias[_nivel - 1]).AsTask();
+
+    private async Task PausaNino()
+    {
+        _pausado = true;
+        await JS.InvokeVoidAsync("nbmResearch.sensoryStop");
+        if (Recorder != null) await Recorder.Marcar("pausa_nino");
+    }
+
+    private async Task Reanudar()
+    {
+        _pausado = false;
+        StateHasChanged();
+        await Task.Yield();
+        await Iniciar();
+        if (Recorder != null) await Recorder.Marcar("reanudar");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        try { await JS.InvokeVoidAsync("nbmResearch.sensoryStop"); } catch (JSDisconnectedException) { }
+    }
+}

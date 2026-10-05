@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ordena la Historia - BlueMinds IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="game-container">
+    <header class="game-header">
+      <div class="back-button">
+        <button onclick="goToMainPage()">
+          <i class="fas fa-arrow-left"></i> Volver
+        </button>
+      </div>
+      <h1 class="game-title"><i class="fas fa-stream"></i> Ordena la Historia IA</h1>
+      <div class="ai-status">
+        <span id="score-display" data-i18n-suffix=" puntos">0</span>
+        <div class="ai-indicator" title="IA adaptativa activa">
+          <i class="fas fa-robot"></i>
+        </div>
+      </div>
+    </header>
+
+    <main class="game-content">
+      <div class="progress-card">
+        <div class="progress-header">
+          <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+          <span id="score">0 puntos</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="game-card">
+        <div id="difficulty-indicator" class="difficulty-indicator" style="display: none;"></div>
+        <div id="narrative-hint" class="narrative-hint" style="display: none;"></div>
+
+        <h2 id="sequence-title">¡Ordena la secuencia correcta!</h2>
+
+        <div class="sequence-display" id="sequence-display"></div>
+
+        <p style="font-size: 16px; margin-bottom: 15px; color: #777;">Arrastra o haz clic en las imágenes en el orden
+          correcto:</p>
+        <div class="options-display" id="options-display"></div>
+
+        <div class="action-buttons">
+          <button class="action-button primary" onclick="checkSequence()">
+            <i class="fas fa-check"></i> Verificar
+          </button>
+          <button class="action-button secondary" onclick="resetSequence()">
+            <i class="fas fa-redo"></i> Reiniciar
+          </button>
+        </div>
+
+        <div id="feedback" class="feedback">
+          <span id="feedback-text"></span>
+        </div>
+
+        <div id="ai-analysis" class="ai-analysis">
+          <strong>📊 Análisis IA:</strong> <span id="analysis-text"></span>
+        </div>
+      </div>
+
+      <div class="instructions-card">
+        <p>🤖 <strong>IA Adaptativa:</strong> El sistema ajusta automáticamente la cantidad de imágenes y complejidad
+          según tu comprensión narrativa y secuenciación.</p>
+      </div>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+
+  <script src="../../../../api.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+
+</html>

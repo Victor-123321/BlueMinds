@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sigue al Líder de Movimiento - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Sigue al Líder de Movimiento</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <!-- Progress -->
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                    <span id="score">0 puntos</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Main Game Card -->
+            <div class="movement-card">
+                <h2>Observa y Copia el Movimiento 🎭</h2>
+
+                <!-- Avatar Leader Section -->
+                <div class="leader-section">
+                    <div class="section-label">👨‍🏫 El Líder</div>
+                    <div class="avatar-container">
+                        <div id="avatar-leader" class="avatar leader">
+                            <div class="avatar-head"></div>
+                            <div class="avatar-body">
+                                <div class="avatar-arm avatar-arm-left"></div>
+                                <div class="avatar-arm avatar-arm-right"></div>
+                                <div class="avatar-leg avatar-leg-left"></div>
+                                <div class="avatar-leg avatar-leg-right"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="instruction-text" class="instruction-text">
+                        Escucha la instrucción
+                    </div>
+                </div>
+
+                <!-- Visual Guide -->
+                <div id="visual-guide" class="visual-guide hidden">
+                    <h4>📍 Puntos de Referencia</h4>
+                    <div class="guide-points">
+                        <div class="guide-point">
+                            <i class="fas fa-hand-paper"></i>
+                            <span id="guide-hands">Brazos</span>
+                        </div>
+                        <div class="guide-point">
+                            <i class="fas fa-person"></i>
+                            <span id="guide-body">Cuerpo</span>
+                        </div>
+                        <div class="guide-point">
+                            <i class="fas fa-running"></i>
+                            <span id="guide-movement">Movimiento</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Difficulty Indicator -->
+                <div class="difficulty-indicator">
+                    <span>Dificultad:</span>
+                    <div id="difficulty-stars" class="stars">
+                        <span class="star active">★</span>
+                        <span class="star">★</span>
+                        <span class="star">★</span>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="action-controls">
+                    <button id="play-button" class="action-button primary">
+                        <i class="fas fa-play"></i> Mostrar Movimiento
+                    </button>
+                    <button id="repeat-button" class="action-button secondary" style="display: none;">
+                        <i class="fas fa-redo"></i> Repetir
+                    </button>
+                    <button id="done-button" class="action-button blue" disabled>
+                        <i class="fas fa-check"></i> ¡Lo Hice!
+                    </button>
+                </div>
+
+                <!-- Camera & Analysis Section -->
+                <div class="camera-analysis-section">
+                    <div class="camera-controls">
+                        <button class="camera-btn start" id="startCameraBtn" onclick="startCamera()">
+                            <i class="fas fa-video"></i> Iniciar Cámara
+                        </button>
+                        <button class="camera-btn stop" id="stopCameraBtn" onclick="stopCamera()" style="display: none;">
+                            <i class="fas fa-stop"></i> Detener
+                        </button>
+                    </div>
+
+                    <div class="camera-container">
+                        <div class="camera-feed" id="cameraFeedContainer">
+                            <video id="cameraFeed" style="display: none;"></video>
+                            <span id="cameraPlaceholder">La cámara se abrirá aquí</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Analysis -->
+                    <div class="ai-analysis" id="aiAnalysis" style="display: none;">
+                        <h4 style="margin-bottom: 12px; color: var(--primary-blue);">📊 Análisis de Movimiento</h4>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Calidad del Movimiento:</span>
+                            <span class="analysis-value" id="movementQuality">--%</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Amplitud de Brazos:</span>
+                            <span class="analysis-value" id="armAmplitude">--%</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Latencia (ms):</span>
+                            <span class="analysis-value" id="latency">--</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Coordinación General:</span>
+                            <span class="analysis-value" id="coordination">--%</span>
+                        </div>
+                    </div>
+
+                    <!-- Adaptation Notice -->
+                    <div id="adaptationNotice" class="adaptation-notice hidden">
+                        <i class="fas fa-lightbulb"></i>
+                        <span id="adaptationText"></span>
+                    </div>
+                </div>
+
+                <!-- Feedback -->
+                <div id="feedback" class="feedback hidden">
+                    <span id="feedback-text"></span>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions-card">
+                <p>
+                    💡 <span class="font-bold">Tip:</span> Mira al avatar, escucha la instrucción y después imita el movimiento con tu cuerpo. La cámara analizará qué tan bien lo haces.
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

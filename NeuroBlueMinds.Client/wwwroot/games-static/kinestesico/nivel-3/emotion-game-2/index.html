@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narración Emocional Simple - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Narración Emocional Simple</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <!-- Progress -->
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">3</span></span>
+                    <span id="score">0 puntos</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Main Game Card -->
+            <div class="emotion-card">
+                <h2>Observa la Escena 🎬</h2>
+
+                <!-- GIF Display -->
+                <div class="gif-section">
+                    <div class="gif-container">
+                        <div class="gif-placeholder" id="gifPlaceholder">
+                            <img id="emotionGif" src="" alt="Emoción" style="width: 100%; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simple Feedback -->
+                <div id="feedback" class="feedback hidden">
+                    <span id="feedback-text"></span>
+                </div>
+
+                <!-- Camera Section for Imitation -->
+                <div class="camera-section">
+                    <h3>🎭 Ahora Imita la Emoción</h3>
+                    
+                    <div class="camera-controls">
+                        <button class="camera-btn start" id="startCameraBtn" onclick="startCamera()">
+                            <i class="fas fa-video"></i> Iniciar Cámara
+                        </button>
+                        <button class="camera-btn stop" id="stopCameraBtn" onclick="stopCamera()" style="display: none;">
+                            <i class="fas fa-stop"></i> Detener
+                        </button>
+                    </div>
+
+                    <div class="camera-container">
+                        <div class="camera-feed" id="cameraFeedContainer">
+                            <video id="cameraFeed" style="display: none;"></video>
+                            <span id="cameraPlaceholder">La cámara se abrirá aquí</span>
+                        </div>
+                    </div>
+
+                    <!-- Simple Analysis -->
+                    <div class="simple-analysis" id="simpleAnalysis" style="display: none;">
+                        <h4>✨ Detección de Emoción</h4>
+                        <div class="analysis-item">
+                            <span class="analysis-label">Estado Emocional:</span>
+                            <span class="analysis-value" id="emotionStatus">Detectando...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Emotion Selection -->
+                <div class="options-section">
+                    <h3>¿Cuál es la emoción? 👇</h3>
+                    <div id="options-container" class="options-container">
+                        <!-- Las opciones se generarán dinámicamente -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions-card">
+                <p>
+                    💡 <span class="font-bold">Cómo jugar:</span> Mira el GIF, intenta imitar la emoción con tu cara, y selecciona cuál es.
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

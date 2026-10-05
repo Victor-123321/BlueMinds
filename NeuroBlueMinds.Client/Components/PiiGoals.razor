@@ -1,0 +1,315 @@
+@* PiiGoals.razor — Plan de Intervención Individualizada
+   Shows intervention goals for a child profile.
+   Specialists can add / update / mark achieved. Parents can view. *@
+@inject HttpClient Http
+@inject ILogger<PiiGoals> Logger
+
+<div class="space-y-4">
+
+    @* ── Header ─────────────────────────────────────────────────────────────── *@
+    <div class="flex items-center justify-between">
+        <div>
+            <h3 class="font-black text-slate-800 text-base flex items-center gap-2">
+                <span class="material-symbols-outlined text-indigo-500">assignment</span>
+                Plan de Intervención
+            </h3>
+            <p class="text-xs text-slate-500">Metas terapéuticas con seguimiento</p>
+        </div>
+        @if (CanWrite && !_showForm)
+        {
+            <button @onclick="ShowForm"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold
+                           hover:bg-indigo-700 transition-all flex items-center gap-1">
+                <span class="material-symbols-outlined text-base">add</span>
+                Nueva meta
+            </button>
+        }
+    </div>
+
+    @* ── Add goal form ───────────────────────────────────────────────────────── *@
+    @if (_showForm && CanWrite)
+    {
+        <div class="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-5 space-y-3">
+            <p class="font-black text-indigo-800 text-sm">Nueva Meta de Intervención</p>
+
+            <input @bind="_form.GoalTitle" placeholder="Título de la meta *"
+                   class="w-full border-2 border-indigo-200 rounded-xl px-3 py-2 text-sm
+                          focus:border-indigo-500 outline-none" />
+
+            <textarea @bind="_form.GoalDescription" placeholder="Descripción y estrategias…" rows="3"
+                      class="w-full border-2 border-indigo-200 rounded-xl px-3 py-2 text-sm
+                             focus:border-indigo-500 outline-none resize-none"></textarea>
+
+            <div class="grid grid-cols-2 gap-3">
+                <select @bind="_form.Category"
+                        class="border-2 border-indigo-200 rounded-xl px-3 py-2 text-sm
+                               focus:border-indigo-500 outline-none">
+                    <option value="">Categoría</option>
+                    <option value="cognitivo">Cognitivo</option>
+                    <option value="social">Social</option>
+                    <option value="motor">Motor</option>
+                    <option value="lenguaje">Lenguaje</option>
+                    <option value="emocional">Emocional</option>
+                </select>
+                <input type="date" @bind="_form.TargetDate"
+                       class="border-2 border-indigo-200 rounded-xl px-3 py-2 text-sm
+                              focus:border-indigo-500 outline-none" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_formError))
+            {
+                <p class="text-red-600 text-xs font-bold">⚠️ @_formError</p>
+            }
+
+            <div class="flex gap-2">
+                <button @onclick="SaveGoal" disabled="_saving"
+                        class="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold
+                               hover:bg-indigo-700 transition-all disabled:opacity-50">
+                    @(_saving ? "Guardando…" : "Guardar meta")
+                </button>
+                <button @onclick="CancelForm"
+                        class="text-slate-500 px-4 py-2 rounded-xl text-sm font-bold
+                               hover:bg-slate-100 transition-all">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    }
+
+    @* ── Loading ─────────────────────────────────────────────────────────────── *@
+    @if (_loading)
+    {
+        <div class="space-y-2">
+            @for (int i = 0; i < 3; i++)
+            {
+                <div class="bg-slate-100 rounded-2xl h-20 animate-pulse"></div>
+            }
+        </div>
+    }
+    else if (!_goals.Any())
+    {
+        <div class="bg-slate-50 rounded-2xl p-8 text-center">
+            <p class="text-4xl mb-2">📋</p>
+            <p class="text-slate-600 font-bold">Sin metas registradas</p>
+            <p class="text-slate-400 text-sm">
+                @(CanWrite ? "Agrega la primera meta de intervención." : "El especialista aún no ha definido metas.")
+            </p>
+        </div>
+    }
+    else
+    {
+        @* ── Goal cards ────────────────────────────────────────────────────────── *@
+        <div class="space-y-3">
+            @foreach (var goal in _goals)
+            {
+                var statusColor = goal.Status switch
+                {
+                    "achieved"  => "bg-emerald-50 border-emerald-300",
+                    "paused"    => "bg-amber-50  border-amber-300",
+                    "cancelled" => "bg-slate-50  border-slate-200 opacity-60",
+                    _           => "bg-white     border-indigo-200",
+                };
+
+                <div class="@statusColor border-2 rounded-2xl p-4 transition-all">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-base">@GetCategoryEmoji(goal.Category)</span>
+                                <span class="font-black text-slate-800 text-sm">@goal.GoalTitle</span>
+                                <span class="@GetStatusBadgeClass(goal.Status) text-[10px] font-black px-2 py-0.5 rounded-full">
+                                    @GetStatusLabel(goal.Status)
+                                </span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(goal.GoalDescription))
+                            {
+                                <p class="text-slate-600 text-xs mb-2">@goal.GoalDescription</p>
+                            }
+                            <div class="flex items-center gap-3 text-[10px] text-slate-400 font-bold">
+                                @if (!string.IsNullOrEmpty(goal.Category))
+                                {
+                                    <span class="bg-slate-100 rounded-full px-2 py-0.5">@goal.Category</span>
+                                }
+                                @if (goal.TargetDate.HasValue)
+                                {
+                                    var overdue = goal.Status == "active" && goal.TargetDate.Value < DateTime.Today;
+                                    <span class="@(overdue ? "text-red-500" : "")">
+                                        🎯 @goal.TargetDate.Value.ToString("d MMM yyyy")
+                                        @(overdue ? "⚠️" : "")
+                                    </span>
+                                }
+                                @if (goal.AchievedAt.HasValue)
+                                {
+                                    <span class="text-emerald-600">✅ @goal.AchievedAt.Value.ToString("d MMM yyyy")</span>
+                                }
+                            </div>
+                        </div>
+
+                        @if (CanWrite && goal.Status == "active")
+                        {
+                            <div class="flex gap-1 shrink-0">
+                                <button @onclick="() => MarkAchieved(goal.Id)"
+                                        title="Marcar como lograda"
+                                        class="bg-emerald-100 text-emerald-700 rounded-lg px-2 py-1 text-xs font-bold
+                                               hover:bg-emerald-200 transition-all">
+                                    ✅
+                                </button>
+                                <button @onclick="() => TogglePause(goal)"
+                                        title="Pausar meta"
+                                        class="bg-amber-100 text-amber-700 rounded-lg px-2 py-1 text-xs font-bold
+                                               hover:bg-amber-200 transition-all">
+                                    ⏸
+                                </button>
+                            </div>
+                        }
+                        @if (CanWrite && goal.Status == "paused")
+                        {
+                            <button @onclick="() => TogglePause(goal)"
+                                    title="Reactivar meta"
+                                    class="bg-indigo-100 text-indigo-700 rounded-lg px-2 py-1 text-xs font-bold
+                                           hover:bg-indigo-200 transition-all">
+                                ▶️ Reactivar
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Progress summary ─────────────────────────────────────────────────── *@
+        <div class="grid grid-cols-3 gap-3 pt-2">
+            <div class="bg-emerald-50 rounded-xl p-3 text-center">
+                <p class="text-2xl font-black text-emerald-700">@_goals.Count(g => g.Status == "achieved")</p>
+                <p class="text-[10px] font-bold text-emerald-600">Logradas</p>
+            </div>
+            <div class="bg-indigo-50 rounded-xl p-3 text-center">
+                <p class="text-2xl font-black text-indigo-700">@_goals.Count(g => g.Status == "active")</p>
+                <p class="text-[10px] font-bold text-indigo-600">En progreso</p>
+            </div>
+            <div class="bg-amber-50 rounded-xl p-3 text-center">
+                <p class="text-2xl font-black text-amber-700">@_goals.Count(g => g.Status == "paused")</p>
+                <p class="text-[10px] font-bold text-amber-600">Pausadas</p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int  ChildProfileId { get; set; }
+    [Parameter] public bool CanWrite       { get; set; } = false;
+
+    private bool   _loading   = true;
+    private bool   _showForm  = false;
+    private bool   _saving    = false;
+    private string _formError = "";
+
+    private List<PiiGoalViewModel> _goals = new();
+
+    private class FormModel
+    {
+        public string    GoalTitle       { get; set; } = "";
+        public string    GoalDescription { get; set; } = "";
+        public string    Category        { get; set; } = "";
+        public DateTime? TargetDate      { get; set; }
+    }
+    private FormModel _form = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ChildProfileId > 0)
+            await LoadGoalsAsync();
+    }
+
+    private async Task LoadGoalsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<PiiGoalViewModel>>($"api/pii/{ChildProfileId}");
+            _goals = result ?? new();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "[PiiGoals] Error loading goals for profile {Id}.", ChildProfileId); }
+        finally { _loading = false; }
+    }
+
+    private void ShowForm()  { _showForm = true; _form = new(); _formError = ""; }
+    private void CancelForm() { _showForm = false; }
+
+    private async Task SaveGoal()
+    {
+        if (string.IsNullOrWhiteSpace(_form.GoalTitle)) { _formError = "El título es obligatorio."; return; }
+        _saving = true; _formError = "";
+        try
+        {
+            var payload = new
+            {
+                goalTitle       = _form.GoalTitle,
+                goalDescription = _form.GoalDescription,
+                category        = _form.Category,
+                targetDate      = _form.TargetDate,
+            };
+            var resp = await Http.PostAsJsonAsync($"api/pii/{ChildProfileId}", payload);
+            if (resp.IsSuccessStatusCode)
+            {
+                _showForm = false;
+                await LoadGoalsAsync();
+            }
+            else _formError = "Error al guardar. Intenta de nuevo.";
+        }
+        catch (Exception ex) { Logger.LogError(ex, "[PiiGoals] SaveGoal error."); _formError = "Error al guardar."; }
+        finally { _saving = false; }
+    }
+
+    private async Task MarkAchieved(int goalId)
+    {
+        try
+        {
+            await Http.PatchAsJsonAsync($"api/pii/{goalId}", new { status = "achieved" });
+            await LoadGoalsAsync();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "[PiiGoals] MarkAchieved error."); }
+    }
+
+    private async Task TogglePause(PiiGoalViewModel goal)
+    {
+        var newStatus = goal.Status == "paused" ? "active" : "paused";
+        try
+        {
+            await Http.PatchAsJsonAsync($"api/pii/{goal.Id}", new { status = newStatus });
+            await LoadGoalsAsync();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "[PiiGoals] TogglePause error."); }
+    }
+
+    private static string GetCategoryEmoji(string? cat) => cat switch
+    {
+        "cognitivo" => "🧠", "social"    => "🤝", "motor"     => "💪",
+        "lenguaje"  => "💬", "emocional" => "❤️", _           => "📋"
+    };
+
+    private static string GetStatusLabel(string status) => status switch
+    {
+        "achieved" => "Lograda", "paused" => "Pausada",
+        "cancelled" => "Cancelada", _ => "Activa"
+    };
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "achieved"  => "bg-emerald-100 text-emerald-700",
+        "paused"    => "bg-amber-100 text-amber-700",
+        "cancelled" => "bg-slate-200 text-slate-500",
+        _           => "bg-indigo-100 text-indigo-700",
+    };
+
+    private class PiiGoalViewModel
+    {
+        public int       Id              { get; set; }
+        public int       ChildProfileId  { get; set; }
+        public string    GoalTitle       { get; set; } = "";
+        public string?   GoalDescription { get; set; }
+        public string?   Category        { get; set; }
+        public string    Status          { get; set; } = "active";
+        public DateTime? TargetDate      { get; set; }
+        public DateTime? AchievedAt      { get; set; }
+        public DateTime  CreatedAt       { get; set; }
+    }
+}

@@ -1,0 +1,61 @@
+@* Routes.razor
+   FIX: El flash de 404 ocurría porque @rendermode InteractiveWebAssembly hace que
+   en el primer request SSR el Router no encuentra la ruta (el ensamblado WASM aún
+   no cargó) y renderiza el bloque <NotFound>.
+   
+   Solución: el bloque <NotFound> solo se muestra si Blazor ya está completamente
+   interactivo. Mientras carga, mostramos un spinner neutral en lugar del mensaje de error. *@
+@using Microsoft.AspNetCore.Components.Web
+@* Sin prerender: el servidor no conoce la sesión (JWT en localStorage), así que
+   cualquier HTML prerenderado sería el de un usuario anónimo y parpadearía antes
+   de que WASM tome el control. El overlay de App.razor cubre la carga. *@
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject IJSRuntime JS
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @* Shown when [Authorize] fails — redirect to login *@
+                    <RedirectToLogin />
+                </NotAuthorized>
+                <Authorizing>
+                    @* Shown while auth state is loading — prevents flicker *@
+                    <PageLoading />
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            @* Only reached client-side after WASM is loaded.
+               The SSR first-pass 404 flash is prevented by the spinner in App.razor *@
+            <PageTitle>No encontrado — BlueMinds</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <div class="min-h-screen flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="text-6xl mb-4">🔍</div>
+                        <h2 class="text-2xl font-black text-slate-800 mb-2">Página no encontrada</h2>
+                        <p class="text-slate-500 mb-6">Lo sentimos, no hay nada en esta dirección.</p>
+                        <a href="/dashboard"
+                           class="bg-blue-600 text-white font-black px-6 py-3 rounded-2xl hover:bg-blue-700 transition-all">
+                            Ir al Dashboard
+                        </a>
+                    </div>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Quita el overlay de carga de App.razor justo cuando ya hay UI que mostrar.
+        if (firstRender)
+        {
+            try { await JS.InvokeVoidAsync("nbmAppReady"); }
+            catch (JSException) { /* App.razor sin el script (p. ej. pruebas) */ }
+        }
+    }
+}

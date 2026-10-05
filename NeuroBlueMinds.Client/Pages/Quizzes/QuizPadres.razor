@@ -1,0 +1,114 @@
+@page "/quiz/padres"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Text.Json
+@using System.Security.Claims
+@implements IDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IDashboardService DashboardService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<QuizPadres> Logger
+
+<PageTitle>Quiz para Padres - BlueMinds</PageTitle>
+
+<div class="quiz-frame-wrapper">
+    <div class="quiz-frame-bar quiz-frame-bar--padres">
+        <button class="back-btn" @onclick='() => Nav.NavigateTo("/quiz")'>
+            <span class="material-symbols-outlined">arrow_back</span> Volver
+        </button>
+        <span class="quiz-frame-title">
+            <span class="material-symbols-outlined">person</span> Quiz para Padres
+        </span>
+    </div>
+    <iframe class="quiz-iframe" src="/pages/quiz-padres.html" title="Quiz para Padres"></iframe>
+</div>
+
+@code {
+    private DotNetObjectReference<QuizPadres>? _objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            _objRef = DotNetObjectReference.Create(this);
+
+            // Register on the outer window — gameInterop.js defines setupQuizBridge
+            await JS.InvokeVoidAsync("setupQuizBridge", _objRef);
+
+            // Load any active session and inject its progress so the iframe can resume
+            var authState   = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            {
+                var session = await DashboardService.GetActiveParentSessionAsync(userId);
+                if (session != null)
+                {
+                    var answersArray = session.Responses?
+                        .OrderBy(r => r.QuestionIndex)
+                        .Select(r => r.Answer)
+                        .ToList();
+
+                    var progressPayload = new
+                    {
+                        progress = new
+                        {
+                            current_question_index = session.CurrentQuestionIndex,
+                            answers                = answersArray,
+                            is_completed           = false
+                        }
+                    };
+
+                    // Inject into the PARENT window; api.js reads window.parent.parentQuizProgress
+                    string json = JsonSerializer.Serialize(progressPayload);
+                    await JS.InvokeVoidAsync("eval", $"window.parentQuizProgress = {json};");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[QuizPadres] Init error occurred during session initialization");
+        }
+    }
+
+    // Called by api.js on every answer selection
+    [JSInvokable]
+    public async Task SaveResponseFromIframe(int index, string section, string answer)
+    {
+        try
+        {
+            var authState   = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+                await DashboardService.SaveParentResponseAsync(userId, index, section, answer);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[QuizPadres] Error saving parent response for index {Index} section {Section}", index, section);
+        }
+    }
+
+    // Called by api.js when all 19 questions are answered
+    [JSInvokable]
+    public async Task CompleteQuizFromIframe(int communicationScore, string learningStyle)
+    {
+        try
+        {
+            var authState   = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+                await DashboardService.CompleteParentSessionAsync(userId, communicationScore, learningStyle);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[QuizPadres] Error completing parent quiz with communicationScore {Score} learningStyle {Style}", communicationScore, learningStyle);
+        }
+    }
+
+    public void Dispose() => _objRef?.Dispose();
+}

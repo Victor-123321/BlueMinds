@@ -1,0 +1,231 @@
+/* ============================================================
+   BlueMinds — Game Selector Pages
+   Supports: auditivo, kinestesico, visual, lectoescritura
+   ============================================================ */
+
+body {
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+    margin: 0;
+}
+
+/* ── Per-category backgrounds ─────────────────────────────── */
+body.sel-auditivo       { background: linear-gradient(135deg, #0066CC 0%, #00B4D8 50%, #0099FF 100%); }
+body.sel-kinestesico    { background: linear-gradient(135deg, #00B4D8 0%, #06B6D4 50%, #0891B2 100%); }
+body.sel-visual         { background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 50%, #FCD34D 100%); }
+body.sel-lectoescritura { background: linear-gradient(135deg, #E91E63 0%, #EC407A 50%, #F06292 100%); }
+
+.container:not(.mx-auto) {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 15px 20px;
+}
+
+/* ── Category Header ──────────────────────────────────────── */
+.category-header {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    margin-bottom: 40px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: #F3F4F6;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #1F2937;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    margin-bottom: 20px;
+    width: fit-content;
+    font-family: 'Nunito', sans-serif;
+}
+
+.back-btn:hover {
+    background: #E5E7EB;
+    transform: translateX(-5px);
+}
+
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+}
+
+.category-icon-large {
+    width: 80px; height: 80px;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    flex-shrink: 0;
+}
+
+/* Per-category icon colors */
+.sel-auditivo       .category-icon-large { background: rgba(0,102,204,0.15);   color: #0066CC; }
+.sel-kinestesico    .category-icon-large { background: rgba(0,180,216,0.15);   color: #00B4D8; }
+.sel-visual         .category-icon-large { background: rgba(245,158,11,0.15);  color: #F59E0B; }
+.sel-lectoescritura .category-icon-large { background: rgba(233,30,99,0.15);   color: #E91E63; }
+
+.header-text h1 {
+    font-size: 32px; font-weight: 800;
+    color: #1F2937; margin-bottom: 5px;
+}
+
+.header-text p { font-size: 16px; color: #666; }
+
+/* ── Level Filter ─────────────────────────────────────────── */
+.level-filter {
+    display: flex; gap: 15px;
+    margin-bottom: 40px; flex-wrap: wrap;
+}
+
+.level-btn {
+    padding: 12px 24px;
+    border: 2px solid #E5E7EB;
+    background: white;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600; color: #1F2937;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-family: 'Nunito', sans-serif;
+}
+
+.sel-auditivo       .level-btn:hover, .sel-auditivo       .level-btn.active { border-color: #0066CC; color: #0066CC; }
+.sel-kinestesico    .level-btn:hover, .sel-kinestesico    .level-btn.active { border-color: #00B4D8; color: #00B4D8; }
+.sel-visual         .level-btn:hover, .sel-visual         .level-btn.active { border-color: #F59E0B; color: #F59E0B; }
+.sel-lectoescritura .level-btn:hover, .sel-lectoescritura .level-btn.active { border-color: #E91E63; color: #E91E63; }
+
+.sel-auditivo       .level-btn.active { background: #0066CC; color: white; }
+.sel-kinestesico    .level-btn.active { background: #00B4D8; color: white; }
+.sel-visual         .level-btn.active { background: #F59E0B; color: white; }
+.sel-lectoescritura .level-btn.active { background: #E91E63; color: white; }
+
+/* ── Games Container ──────────────────────────────────────── */
+.games-container {
+    display: grid; gap: 30px;
+    margin-bottom: 40px;
+}
+
+.level-section {
+    background: white;
+    border-radius: 16px; padding: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.level-title {
+    font-size: 22px; font-weight: 700;
+    color: #1F2937; margin-bottom: 25px;
+    display: flex; align-items: center; gap: 10px;
+}
+
+.level-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px; font-weight: 700;
+}
+
+.sel-auditivo       .level-badge { background: rgba(0,102,204,0.1);  color: #0066CC; }
+.sel-kinestesico    .level-badge { background: rgba(0,180,216,0.1);  color: #00B4D8; }
+.sel-visual         .level-badge { background: rgba(245,158,11,0.1); color: #F59E0B; }
+.sel-lectoescritura .level-badge { background: rgba(233,30,99,0.1);  color: #E91E63; }
+
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+/* ── Game Card ────────────────────────────────────────────── */
+.game-card {
+    border: 2px solid #E5E7EB;
+    border-radius: 16px; padding: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex; flex-direction: column;
+    text-align: center;
+    position: relative; overflow: hidden;
+}
+
+.sel-auditivo       .game-card { background: linear-gradient(135deg, #F8FAFC 0%, #F0F9FF 100%); }
+.sel-kinestesico    .game-card { background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); }
+.sel-visual         .game-card { background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); }
+.sel-lectoescritura .game-card { background: linear-gradient(135deg, #FCE4EC 0%, #F8BBD0 100%); }
+
+.game-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+    transform-origin: left;
+}
+
+.sel-auditivo       .game-card::before { background: linear-gradient(90deg, #0066CC, #00B4D8); }
+.sel-kinestesico    .game-card::before { background: linear-gradient(90deg, #00B4D8, #06B6D4); }
+.sel-visual         .game-card::before { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+.sel-lectoescritura .game-card::before { background: linear-gradient(90deg, #E91E63, #EC407A); }
+
+.sel-auditivo       .game-card:hover { border-color: #0066CC; box-shadow: 0 8px 25px rgba(0,102,204,0.15); transform: translateY(-5px); }
+.sel-kinestesico    .game-card:hover { border-color: #00B4D8; box-shadow: 0 8px 25px rgba(0,180,216,0.15); transform: translateY(-5px); }
+.sel-visual         .game-card:hover { border-color: #F59E0B; box-shadow: 0 8px 25px rgba(245,158,11,0.15); transform: translateY(-5px); }
+.sel-lectoescritura .game-card:hover { border-color: #E91E63; box-shadow: 0 8px 25px rgba(233,30,99,0.15);  transform: translateY(-5px); }
+
+.game-card:hover::before { transform: scaleX(1); }
+
+.game-icon { font-size: 60px; margin-bottom: 15px; }
+.game-title { font-size: 18px; font-weight: 700; color: #1F2937; margin-bottom: 10px; }
+.game-description { font-size: 14px; color: #666; margin-bottom: 20px; flex-grow: 1; }
+
+.game-button {
+    display: inline-block;
+    padding: 12px 28px;
+    color: white; border: none;
+    border-radius: 10px; font-weight: 700;
+    cursor: pointer; transition: all 0.3s ease;
+    text-decoration: none; font-size: 14px;
+    font-family: 'Nunito', sans-serif;
+}
+
+.sel-auditivo       .game-button { background: linear-gradient(135deg, #0066CC, #00B4D8); }
+.sel-kinestesico    .game-button { background: linear-gradient(135deg, #00B4D8, #06B6D4); }
+.sel-visual         .game-button { background: linear-gradient(135deg, #F59E0B, #FBBF24); }
+.sel-lectoescritura .game-button { background: linear-gradient(135deg, #E91E63, #EC407A); }
+
+.game-button:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(0,0,0,0.2); }
+
+/* ── Empty State ──────────────────────────────────────────── */
+.empty-state {
+    text-align: center; padding: 60px 20px; color: #999;
+}
+.empty-state i { font-size: 48px; margin-bottom: 20px; opacity: 0.5; display: block; }
+.empty-state p { font-size: 16px; }
+
+/* ── Footer ───────────────────────────────────────────────── */
+footer {
+    background: rgba(0,0,0,0.1);
+    color: white; padding: 30px 0;
+    text-align: center; margin-top: 40px;
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .category-header { flex-direction: column; text-align: center; }
+    .header-info { flex-direction: column; gap: 15px; }
+    .category-icon-large { width: 60px; height: 60px; font-size: 30px; }
+    .header-text h1 { font-size: 24px; }
+    .games-grid { grid-template-columns: 1fr; }
+    .level-filter { justify-content: center; }
+}

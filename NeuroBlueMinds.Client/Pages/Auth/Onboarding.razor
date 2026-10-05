@@ -1,0 +1,197 @@
+@page "/onboarding"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using NeuroBlueMinds.Shared.DTOs
+@using Microsoft.Extensions.Logging
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient Http
+@inject ClientLocalizationService Loc
+@inject ILogger<Onboarding> Logger
+@implements IDisposable
+
+<PageTitle>@Loc.T("app.name") — @Loc.T("onboarding.title")</PageTitle>
+
+<div class="min-h-screen font-sans flex items-center justify-center p-6"
+     style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0369a1 100%);">
+    <div class="w-full max-w-lg">
+
+        @* Step indicator *@
+        <div class="flex items-center justify-center gap-3 mb-8">
+            @for (int i = 1; i <= 2; i++)
+            {
+                var n = i;
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-sm transition-all @(step >= n ? "bg-blue-500 text-white" : "bg-white/20 text-white/50")">
+                        @if (step > n) { <span class="material-symbols-outlined" style="font-size:16px;">check</span> }
+                        else { @n }
+                    </div>
+                    @if (n < 2) { <div class="w-12 h-0.5 @(step > n ? "bg-blue-500" : "bg-white/20")"></div> }
+                </div>
+            }
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
+
+            @if (step == 1)
+            {
+                <div class="p-10">
+                    <div class="text-center mb-8">
+                        <img src="android-chrome-512x512.png" alt="BlueMinds" class="w-16 mx-auto mb-4" />
+                        <h1 class="text-3xl font-black text-slate-800 mb-2">@Loc.T("onboarding.title")</h1>
+                        <p class="text-slate-500">@Loc.T("onboarding.role_prompt")</p>
+                    </div>
+                    <div class="space-y-3">
+                        @* Roles available on self-registration: parent and specialist only.
+                           Child accounts are created by parents from the family panel.
+                           Admin accounts are assigned by the webmaster directly in the DB. *@
+                        @foreach (var r in RoleOptions)
+                        {
+                            <button @onclick='() => SelectRole(r.Value)'
+                                    class="w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left @(selectedRole == r.Value ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-blue-200 hover:bg-slate-50")">
+                                <div class="w-12 h-12 @r.BgClass rounded-xl flex items-center justify-center shrink-0">
+                                    <span class="material-symbols-outlined @r.IconColor" style="font-size:1.5rem;">@r.Icon</span>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="font-black text-slate-800">@Loc.T(r.LabelKey)</div>
+                                    <div class="text-slate-500 text-sm">@Loc.T(r.DescKey)</div>
+                                </div>
+                                @if (selectedRole == r.Value)
+                                { <span class="material-symbols-outlined text-blue-500">check_circle</span> }
+                            </button>
+                        }
+                    </div>
+                    <button @onclick="() => step = 2" disabled="@string.IsNullOrEmpty(selectedRole)"
+                            class="w-full mt-6 bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                        @Loc.T("onboarding.continue")
+                    </button>
+                </div>
+            }
+
+            @if (step == 2)
+            {
+                <div class="p-10">
+                    <button @onclick="() => step = 1"
+                            class="flex items-center gap-1 text-slate-400 hover:text-slate-600 mb-6 text-sm font-bold transition-colors">
+                        <span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span> @Loc.T("onboarding.back")
+                    </button>
+                    <div class="text-center mb-8">
+                        <h2 class="text-2xl font-black text-slate-800">@Loc.T("onboarding.complete_profile")</h2>
+                        <p class="text-slate-500 text-sm mt-1">@Loc.T(RoleOptions.FirstOrDefault(r => r.Value == selectedRole)?.LabelKey ?? "")</p>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMsg))
+                    {
+                        <div class="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">@errorMsg</div>
+                    }
+
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-2">@Loc.T("onboarding.birth")</label>
+                            <input type="date" @bind="birthDate"
+                                   class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-slate-700" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-600 mb-2">@Loc.T("onboarding.country")</label>
+                            <select @bind="country"
+                                    class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-slate-700 bg-white">
+                                <option value="">@Loc.T("onboarding.country_placeholder")</option>
+                                @foreach (var c in Countries)
+                                {
+                                    <option value="@c">@c</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <button @onclick="HandleSubmit"
+                            disabled="@(isSubmitting || string.IsNullOrEmpty(country))"
+                            class="w-full mt-6 bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        @if (isSubmitting)
+                        {
+                            <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        }
+                        <span>@Loc.T("onboarding.submit")</span>
+                    </button>
+                </div>
+            }
+        </div>
+        <p class="text-center text-blue-300/50 text-xs mt-6">BlueMinds • Neuro-Educación con IA • 2026</p>
+    </div>
+</div>
+
+@code {
+    private int       step          = 1;
+    private string    selectedRole  = "";
+    private DateTime? birthDate;
+    private string    country       = "";
+    private bool      isSubmitting  = false;
+    private string    errorMsg      = "";
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public    void        Dispose()         => Loc.OnLocaleChanged -= StateHasChanged;
+
+    private record RoleOption(string Value, string LabelKey, string DescKey,
+                               string Icon, string BgClass, string IconColor);
+
+    // Child accounts are created by parents; admin is assigned by webmaster.
+    // Only parent and specialist are available here.
+    private static readonly RoleOption[] RoleOptions =
+    {
+        new("parent",     "onboarding.role.parent",     "onboarding.role.parent_desc",
+            "family_restroom", "bg-green-100",  "text-green-600"),
+        new("specialist", "onboarding.role.specialist", "onboarding.role.specialist_desc",
+            "clinical_notes",  "bg-purple-100", "text-purple-600"),
+    };
+
+    private void SelectRole(string role) => selectedRole = role;
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true; errorMsg = "";
+        try
+        {
+            var updatedProfile = await AuthService.CompleteProfileAsync(new CompleteProfileDto
+            {
+                Birth   = birthDate,
+                Country = country,
+                Role    = selectedRole,
+                Locale  = Loc.CurrentLocale
+            });
+
+            if (updatedProfile?.Token != null)
+            {
+                // Update both authToken and parentToken with the new role-stamped JWT
+                await JS.InvokeVoidAsync("localStorage.setItem", "authToken",   updatedProfile.Token);
+                await JS.InvokeVoidAsync("localStorage.setItem", "parentToken", updatedProfile.Token);
+
+                if (!string.IsNullOrEmpty(updatedProfile.Name))
+                    await JS.InvokeVoidAsync("localStorage.setItem", "parentName", updatedProfile.Name);
+                if (!string.IsNullOrEmpty(updatedProfile.Email))
+                    await JS.InvokeVoidAsync("localStorage.setItem", "parentEmail", updatedProfile.Email);
+            }
+
+            var destination = selectedRole switch
+            {
+                "parent"     => "/family",    // create child profiles first
+                "specialist" => "/dashboard", // clinical dashboard
+                _            => "/dashboard"
+            };
+            Nav.NavigateTo(destination, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMsg = Loc.T("onboarding.err_save");
+            Logger.LogError(ex, "Failed to complete profile during onboarding");
+        }
+        finally { isSubmitting = false; }
+    }
+
+    private static readonly List<string> Countries = new()
+    {
+        "México","Argentina","Bolivia","Brasil","Chile","Colombia","Costa Rica",
+        "Ecuador","El Salvador","España","Estados Unidos","Guatemala","Honduras",
+        "Nicaragua","Panamá","Paraguay","Perú","República Dominicana","Uruguay","Venezuela","Otro"
+    };
+}

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escribe la Palabra - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Escribe la Palabra</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+                <span class="difficulty-badge" id="difficulty-badge">Normal</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                    <span id="score">0 puntos</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <div class="escribe-card">
+                <h2>Observa la imagen y escribe la palabra</h2>
+
+                <div class="game-phase-section">
+                    <!-- FASE 1: Mostrar imagen con palabra -->
+                    <div id="phase1" class="phase hidden">
+                        <div class="image-with-word">
+                            <img id="phase1-image" src="" alt="Imagen">
+                            <div id="word-display" class="word-display"></div>
+                        </div>
+                        <div class="countdown-container">
+                            <div class="countdown-text">La palabra desaparecerá en <span id="countdown">3</span>s</div>
+                            <div class="countdown-bar">
+                                <div id="countdown-fill" class="countdown-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FASE 2: Escribir palabra (sin imagen) -->
+                    <div id="phase2" class="phase hidden">
+                        <div class="memory-test">
+                            <div class="memory-instruction">Escribe la palabra que viste:</div>
+                            <input 
+                                type="text" 
+                                id="write-input" 
+                                class="write-input" 
+                                placeholder="Escribe aquí..."
+                                autocomplete="off"
+                            >
+                        </div>
+
+                        <div id="word-difficulty" class="word-difficulty hidden">
+                            <div class="difficulty-info">
+                                <span id="word-length-info"></span>
+                                <span id="word-complexity-info"></span>
+                            </div>
+                        </div>
+
+                        <div id="letter-hints" class="letter-hints hidden">
+                            <div class="hints-header">Letras iniciales:</div>
+                            <div id="hints-list" class="hints-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-controls">
+                    <button id="start-button" class="action-button primary">
+                        <i class="fas fa-play"></i> Comenzar
+                    </button>
+                    <button id="hint-button" class="action-button hint" title="Ver pista" style="display: none;">
+                        <i class="fas fa-lightbulb"></i> Pista
+                    </button>
+                    <button id="check-button" class="action-button primary" style="display: none;">
+                        <i class="fas fa-check"></i> Verificar
+                    </button>
+                    <button id="reset-button" class="action-button blue" style="display: none;">
+                        <i class="fas fa-redo"></i> Reiniciar
+                    </button>
+                </div>
+
+                <div id="feedback" class="feedback hidden"></div>
+
+                <div id="explanation" class="explanation hidden">
+                    <h3>Información</h3>
+                    <p id="explanation-text"></p>
+                </div>
+
+                <div id="stats" class="stats hidden">
+                    <div class="stat-item">
+                        <span class="stat-label">Complejidad de palabras:</span>
+                        <span id="word-stats" class="stat-value">Normal</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Longitud promedio:</span>
+                        <span id="length-stats" class="stat-value">5-7 letras</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="instructions-card">
+                <p>💡 <span style="font-weight: 700;">Tip:</span> Observa bien la imagen y la palabra. Cuando desaparezca, escribe lo que recuerdes. ¡Usa la pista si la necesitas!</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

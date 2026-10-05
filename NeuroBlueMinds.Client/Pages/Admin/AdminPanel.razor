@@ -1,0 +1,397 @@
+@* NeuroBlueMinds.Client/Pages/Admin/AdminPanel.razor
+   CAMBIOS:
+   ✓ Cambio de rol en línea (dropdown + botón confirmar) sin salir de la tabla
+   ✓ Impersonation banner integrado con StopImpersonation
+   ✓ Estadísticas VARK visibles
+   ✓ Botón de refresh en la tabla de usuarios *@
+@page "/admin"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<PageTitle>BlueMinds — Admin Panel</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="min-h-screen flex items-center justify-center">
+        <div class="text-center">
+            <div class="text-6xl mb-4">🔒</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-2">Acceso denegado</h2>
+            <p class="text-slate-500">Se requiere rol de administrador.</p>
+            <button @onclick='() => Nav.NavigateTo("/dashboard")'
+                    class="mt-6 bg-blue-600 text-white font-black px-6 py-3 rounded-2xl hover:bg-blue-700 transition-all">
+                Volver al Dashboard
+            </button>
+        </div>
+    </div>
+    return;
+}
+
+<div class="min-h-screen bg-slate-100 pb-20">
+
+    <div class="bg-slate-800 pt-8 pb-16 px-6">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-white text-3xl font-black">Admin Panel</h1>
+                <p class="text-slate-300 mt-1">NeuroBlueMinds · Gestión de Plataforma</p>
+            </div>
+            <button @onclick="() => _ = Task.WhenAll(LoadStats(), LoadUsers())"
+                    class="flex items-center gap-2 bg-white/10 text-white font-bold text-sm px-4 py-2 rounded-xl hover:bg-white/20 transition-all">
+                <span class="material-symbols-outlined" style="font-size:18px;">refresh</span>
+                Actualizar
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-6 -mt-10 space-y-6">
+
+        @* Stats grid *@
+        @if (stats != null)
+        {
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;">
+                @foreach (var (label, val, color) in new[] {
+                    ("Total usuarios",  stats.TotalUsers.ToString(),  "text-blue-600"),
+                    ("Padres",          stats.Parents.ToString(),      "text-green-600"),
+                    ("Niños",           stats.Children.ToString(),     "text-cyan-600"),
+                    ("Especialistas",   stats.Specialists.ToString(),  "text-purple-600"),
+                    ("Nuevos (7 días)", stats.NewUsers7d.ToString(),   "text-amber-600"),
+                })
+                {
+                    <div class="bg-white rounded-2xl p-5 shadow-md text-center">
+                        <div class="text-3xl font-black @color">@val</div>
+                        <div class="text-slate-500 text-xs font-bold mt-1">@label</div>
+                    </div>
+                }
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;">
+                @foreach (var (label, val) in new[] {
+                    ("Perfiles de niños", stats.TotalProfiles.ToString()),
+                    ("Juegos jugados",    stats.TotalGames.ToString()),
+                    ("Quizzes hechos",    stats.TotalQuizzes.ToString()),
+                    ("Accesos activos",   stats.ActiveAccesses.ToString()),
+                    ("Resultados VARK",   stats.VarkResults.ToString()),
+                })
+                {
+                    <div class="bg-white rounded-2xl p-4 shadow-md text-center">
+                        <div class="text-2xl font-black text-slate-700">@val</div>
+                        <div class="text-slate-400 text-xs font-bold mt-1">@label</div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* User management *@
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+                <h2 class="text-xl font-black text-slate-800">Usuarios</h2>
+                <div class="flex gap-3 flex-wrap">
+                    <input @bind="searchQuery" @bind:event="oninput" @onkeyup="FilterUsers"
+                           placeholder="Buscar nombre o email..."
+                           class="px-4 py-2 border-2 border-slate-200 rounded-xl text-sm focus:border-blue-500 focus:outline-none w-56" />
+                    <select @bind="filterRole" @bind:after="FilterUsers"
+                            class="px-4 py-2 border-2 border-slate-200 rounded-xl text-sm focus:border-blue-500 focus:outline-none bg-white">
+                        <option value="">Todos los roles</option>
+                        <option value="parent">Padres</option>
+                        <option value="child">Niños</option>
+                        <option value="specialist">Especialistas</option>
+                        <option value="admin">Admins</option>
+                        <option value="pending">Pendientes</option>
+                    </select>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(actionMsg))
+            {
+                <div class="bg-green-50 text-green-700 text-sm font-bold p-3 rounded-xl mb-4">@actionMsg</div>
+            }
+            @if (!string.IsNullOrEmpty(actionErr))
+            {
+                <div class="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">@actionErr</div>
+            }
+
+            @if (isLoadingUsers)
+            {
+                <div class="text-center py-8 text-slate-400 animate-pulse">Cargando usuarios...</div>
+            }
+            else
+            {
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-slate-400 uppercase text-xs font-black tracking-wide border-b border-slate-100">
+                                <th class="pb-3 pr-4">Usuario</th>
+                                <th class="pb-3 pr-4">Email</th>
+                                <th class="pb-3 pr-4">Rol</th>
+                                <th class="pb-3 pr-4">País</th>
+                                <th class="pb-3 pr-4">Registro</th>
+                                <th class="pb-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            @foreach (var user in filteredUsers)
+                            {
+                                <tr class="hover:bg-slate-50">
+                                    <td class="py-3 pr-4 font-bold text-slate-700">@user.Name</td>
+                                    <td class="py-3 pr-4 text-slate-500 text-xs">@user.Email</td>
+                                    <td class="py-3 pr-4">
+                                        @if (editingRoleUserId == user.Id)
+                                        {
+                                            @* Inline role editor *@
+                                            <div class="flex items-center gap-2">
+                                                <select @bind="editingRoleValue"
+                                                        class="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue-500">
+                                                    <option value="parent">parent</option>
+                                                    <option value="specialist">specialist</option>
+                                                    <option value="admin">admin</option>
+                                                    <option value="pending">pending</option>
+                                                    <option value="child">child</option>
+                                                </select>
+                                                <button @onclick="() => ConfirmRoleChange(user)"
+                                                        class="text-xs bg-blue-600 text-white font-black px-2 py-1 rounded-lg hover:bg-blue-700 transition-all">
+                                                    ✓
+                                                </button>
+                                                <button @onclick="CancelRoleEdit"
+                                                        class="text-xs text-slate-400 hover:text-slate-600 font-bold px-1">
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <button @onclick="() => StartRoleEdit(user)"
+                                                    title="Cambiar rol"
+                                                    class="text-xs font-black px-2 py-1 rounded-full @RoleBadge(user.Role) hover:opacity-80 transition-opacity cursor-pointer">
+                                                @user.Role
+                                            </button>
+                                        }
+                                    </td>
+                                    <td class="py-3 pr-4 text-slate-400 text-xs">@(user.Country ?? "—")</td>
+                                    <td class="py-3 pr-4 text-slate-400 text-xs">@user.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                    <td class="py-3 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button @onclick="() => ImpersonateUser(user)"
+                                                    title="Actuar como este usuario"
+                                                    class="text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline">
+                                                Act as
+                                            </button>
+                                            @if (user.Role is "parent" or "admin")
+                                            {
+                                                <button @onclick="() => ViewChildren(user)"
+                                                        class="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline">
+                                                    Hijos
+                                                </button>
+                                            }
+                                            @if (user.Role == "specialist")
+                                            {
+                                                <button @onclick="() => ViewPatients(user)"
+                                                        class="text-xs font-bold text-purple-600 hover:text-purple-700 hover:underline">
+                                                    Pacientes
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-slate-400 text-xs mt-4">
+                    Mostrando @filteredUsers.Count de @allUsers.Count usuarios
+                </div>
+            }
+        </div>
+
+    </div>
+</div>
+
+@code {
+    private bool      isAdmin        = false;
+    private bool      isLoadingUsers = true;
+    private string    searchQuery    = "";
+    private string    filterRole     = "";
+    private string    actionMsg      = "";
+    private string    actionErr      = "";
+
+    // Inline role editing
+    private int    editingRoleUserId = 0;
+    private string editingRoleValue  = "";
+
+    private PlatformStats?   stats;
+    private List<AdminUser>  allUsers      = new();
+    private List<AdminUser>  filteredUsers = new();
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public    void        Dispose()         => Loc.OnLocaleChanged -= StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var role = auth.User.FindFirst(ClaimTypes.Role)?.Value;
+        isAdmin = role == "admin";
+
+        if (!isAdmin) { StateHasChanged(); return; }
+
+        await Task.WhenAll(LoadStats(), LoadUsers());
+        StateHasChanged();
+    }
+
+    private async Task LoadStats()
+    {
+        try { stats = await Http.GetFromJsonAsync<PlatformStats>("api/admin/stats"); }
+        catch { }
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoadingUsers = true;
+        try
+        {
+            allUsers      = await Http.GetFromJsonAsync<List<AdminUser>>("api/admin/users") ?? new();
+            filteredUsers = new List<AdminUser>(allUsers);
+        }
+        catch { }
+        finally { isLoadingUsers = false; }
+    }
+
+    private void FilterUsers()
+    {
+        filteredUsers = allUsers
+            .Where(u =>
+                (string.IsNullOrEmpty(filterRole) || u.Role == filterRole) &&
+                (string.IsNullOrEmpty(searchQuery) ||
+                 u.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                 u.Email.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
+
+    // ── Inline role editing ───────────────────────────────────────────────────
+
+    private void StartRoleEdit(AdminUser user)
+    {
+        editingRoleUserId = user.Id;
+        editingRoleValue  = user.Role ?? "parent";
+        actionMsg = ""; actionErr = "";
+    }
+
+    private void CancelRoleEdit() => editingRoleUserId = 0;
+
+    private async Task ConfirmRoleChange(AdminUser user)
+    {
+        if (editingRoleValue == user.Role) { CancelRoleEdit(); return; }
+        try
+        {
+            var res = await Http.PatchAsJsonAsync(
+                $"api/admin/users/{user.Id}/role",
+                new { role = editingRoleValue });
+
+            if (res.IsSuccessStatusCode)
+            {
+                user.Role = editingRoleValue;
+                FilterUsers();
+                actionMsg = $"Rol de {user.Name} actualizado a '{editingRoleValue}'.";
+            }
+            else
+            {
+                actionErr = "No se pudo actualizar el rol.";
+            }
+        }
+        catch (Exception ex) { actionErr = ex.Message; }
+        finally { CancelRoleEdit(); }
+    }
+
+    // ── Impersonation ─────────────────────────────────────────────────────────
+
+    private async Task ImpersonateUser(AdminUser user)
+    {
+        actionMsg = ""; actionErr = "";
+        try
+        {
+            var response = await Http.PostAsync($"api/admin/impersonate/{user.Id}", null);
+            if (!response.IsSuccessStatusCode) { actionErr = "Error al impersonar usuario."; return; }
+
+            var result = await response.Content.ReadFromJsonAsync<ImpersonateResult>();
+            if (result == null) return;
+
+            var adminToken = await JS.InvokeAsync<string?>("localStorage.getItem", "authToken");
+            await JS.InvokeVoidAsync("localStorage.setItem", "adminToken",         adminToken ?? "");
+            await JS.InvokeVoidAsync("localStorage.setItem", "authToken",           result.ImpersonationToken);
+            await JS.InvokeVoidAsync("localStorage.setItem", "impersonationToken",  result.ImpersonationToken);
+            await JS.InvokeVoidAsync("localStorage.setItem", "impersonatingName",   user.Name);
+            await JS.InvokeVoidAsync("localStorage.setItem", "impersonatingRole",   user.Role ?? "");
+            // Clear child token so we start fresh as the impersonated user
+            await JS.InvokeVoidAsync("localStorage.removeItem", "childToken");
+            await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildId");
+            await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildName");
+
+            var dest = user.Role switch
+            {
+                "parent"     => "/family",
+                "specialist" => "/dashboard",
+                _            => "/dashboard"
+            };
+            Nav.NavigateTo(dest, forceLoad: true);
+        }
+        catch (Exception ex) { actionErr = $"Error: {ex.Message}"; }
+    }
+
+    // ── Navigation helpers ────────────────────────────────────────────────────
+
+    private void ViewPatients(AdminUser user) =>
+        Nav.NavigateTo($"/dashboard?adminViewUserId={user.Id}");
+
+    private void ViewChildren(AdminUser user) =>
+        Nav.NavigateTo($"/family?adminViewUserId={user.Id}");
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static string RoleBadge(string? r) => r switch
+    {
+        "admin"      => "bg-red-100 text-red-700",
+        "parent"     => "bg-green-100 text-green-700",
+        "child"      => "bg-blue-100 text-blue-700",
+        "specialist" => "bg-purple-100 text-purple-700",
+        "pending"    => "bg-amber-100 text-amber-700",
+        _            => "bg-slate-100 text-slate-500"
+    };
+
+    // ── Local DTOs ────────────────────────────────────────────────────────────
+
+    private class AdminUser
+    {
+        public int      Id        { get; set; }
+        public string   Name      { get; set; } = "";
+        public string   Email     { get; set; } = "";
+        public string?  Role      { get; set; }
+        public string?  Country   { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private class PlatformStats
+    {
+        public int TotalUsers     { get; set; }
+        public int Parents        { get; set; }
+        public int Children       { get; set; }
+        public int Specialists    { get; set; }
+        public int TotalGames     { get; set; }
+        public int TotalQuizzes   { get; set; }
+        public int TotalProfiles  { get; set; }
+        public int ActiveAccesses { get; set; }
+        public int VarkResults    { get; set; }
+        public int NewUsers7d     { get; set; }
+        public int Games7d        { get; set; }
+    }
+
+    private class ImpersonateResult
+    {
+        public string ImpersonationToken { get; set; } = "";
+        public string Message            { get; set; } = "";
+    }
+}

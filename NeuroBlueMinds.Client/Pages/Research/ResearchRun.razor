@@ -1,0 +1,469 @@
+@* Conducción de la sesión V2/V3 en la tableta (Protocolo C&W-NM §9.1.5).
+   La mitad superior es la barra del personal (paso, cronómetro, marcadores, PA, desviaciones);
+   el resto de la pantalla muestra la tarea del niño. Cada inicio y fin de paso queda marcado
+   (evento_inicio_<paso>, evento_fin_<paso>) para alinear con el C&W y el ECG. *@
+@page "/investigacion/sesion/{Clave}"
+@layout ResearchLayout
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "specialist,admin")]
+@using System.Diagnostics
+@using NeuroBlueMinds.Client.Research
+@using NeuroBlueMinds.Client.Components.Research
+@inject ResearchStore Store
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Sesión @Clave — BlueMinds</PageTitle>
+
+@if (_session == null || _rec == null)
+{
+    <div class="rs-page"><p class="rs-muted">@(_noEncontrada ? "No existe esa sesión en esta tableta." : "Cargando sesión…")</p></div>
+}
+else
+{
+    var paso = Paso;
+    <div class="rs-run">
+        <section class="rs-staff @(_barraMin ? "is-min" : "")">
+            <div class="rs-staff-top">
+                <div>
+                    <div class="rs-staff-id">@_session.NinoId · @_session.SesionId · @_session.Visita · orden @_session.Orden</div>
+                    <div class="rs-staff-step">@(_idx + 1)/@_plan.Count · @paso.Titulo</div>
+                </div>
+                <div class="rs-clock @(TiempoCumplido ? "is-done" : "")">@Reloj()</div>
+                <button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="() => _barraMin = !_barraMin">@(_barraMin ? "Mostrar" : "Ocultar")</button>
+            </div>
+
+            @if (!_barraMin)
+            {
+                <p class="rs-staff-instr">@paso.Instruccion</p>
+
+                @switch (paso.Tipo)
+                {
+                    case TipoPaso.Instrumentacion:
+                        <div class="rs-actions">
+                            <button class="rs-btn rs-btn-quiet" disabled="@(_toques >= 3)" @onclick="Toque">Toque de sincronización (@_toques/3)</button>
+                            <button class="rs-btn rs-btn-quiet" @onclick='() => _rec.Marcar("senal_verificada")'>Señal verificada (60 s)</button>
+                            <button class="rs-btn rs-btn-quiet" @onclick='() => _rec.Marcar("reajuste_correa")'>Reajuste de correa</button>
+                            <label class="rs-inline">Orificio de correa
+                                <input type="number" min="1" max="20" @bind="_orificio" />
+                                <button class="rs-btn rs-btn-small rs-btn-quiet" disabled="@(_orificio is null)" @onclick='() => _rec.Valor("correa_orificio", _orificio, "orificio")'>Registrar</button>
+                            </label>
+                        </div>
+                        @if (_session.Visita == "V2")
+                        {
+                            <ScaleButtons Titulo="Dolor de la venopunción (FPS-R, mostrar la tarjeta oficial)" Opciones="ScaleButtons.Fpsr"
+                                          OnSelect='v => _rec.Valor("dolor_fpsr", v, "puntos", "venopuncion")' />
+                        }
+                        <button class="rs-btn" disabled="@(_inicioMarcado || _toques < 3)" @onclick="MarcarInicio">INICIO del registro</button>
+                        break;
+
+                    case TipoPaso.ValidacionLineaBase:
+                        <div class="rs-actions">
+                            <button class="rs-btn @(_mclb == true ? "" : "rs-btn-quiet")" @onclick="() => Mclb(true)">MCLB válida</button>
+                            <button class="rs-btn @(_mclb == false ? "rs-btn-danger" : "rs-btn-quiet")" @onclick="() => Mclb(false)">No válida (reconstruir con ECG)</button>
+                        </div>
+                        break;
+
+                    case TipoPaso.CargaFisica:
+                        <div class="rs-phys">
+                            <div class="rs-phys-stage">@EtapaNombre()</div>
+                            @if (_etapaFisica >= 2)
+                            {
+                                <label class="rs-inline">Potencia (W)
+                                    <input type="number" min="0" max="400" @bind="_potencia" />
+                                    <button class="rs-btn rs-btn-small rs-btn-quiet" disabled="@(_potencia is null)" @onclick='() => _rec.Valor("potencia_w", _potencia, "W")'>Registrar</button>
+                                </label>
+                                <ScaleButtons Titulo="OMNI (últimos 15 s de la etapa)" Opciones="ScaleButtons.Omni" Seleccion="_omniEtapa"
+                                              OnSelect="RegistrarOmni" />
+                            }
+                            <div class="rs-actions">
+                                <select @bind="_motivoFin">
+                                    <option value="0">Motivo de fin de carga…</option>
+                                    @foreach (var m in MotivosFin)
+                                    {
+                                        <option value="@m.Codigo">@m.Texto</option>
+                                    }
+                                </select>
+                                <button class="rs-btn rs-btn-danger" disabled="@(_motivoFin == 0)" @onclick="FinCarga">Fin de carga · marcar t₀</button>
+                            </div>
+                        </div>
+                        break;
+
+                    case TipoPaso.Recuperacion:
+                        <div class="rs-recovery">
+                            <div class="rs-checklist">
+                                @foreach (var m in MinutosPa)
+                                {
+                                    <span class="rs-check @(_paRegistrada.Contains(m) ? "is-done" : SegundosTranscurridos >= m * 60 - 15 ? "is-due" : "")">PA min @m</span>
+                                }
+                                <span class="rs-check @(_omniRec.HasValue ? "is-done" : SegundosTranscurridos >= 45 ? "is-due" : "")">OMNI min 1</span>
+                            </div>
+                            <ScaleButtons Titulo="OMNI al minuto 1" Opciones="ScaleButtons.Omni" Seleccion="_omniRec"
+                                          OnSelect='v => { _omniRec = v; return _rec.Valor("omni", v, "puntos"); }' />
+                            <div class="rs-actions">
+                                <button class="rs-btn rs-btn-quiet" disabled="@_trasladoMarcado" @onclick="Traslado">Traslado a la silla</button>
+                                <label class="rs-inline">ITR del dispositivo (s)
+                                    <input type="number" min="0" max="600" @bind="_itr" />
+                                </label>
+                                <label class="rs-inline"><input type="checkbox" @bind="_itrCensurado" /> Censurado (sin retorno en 600 s)</label>
+                                <button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="RegistrarItr">Registrar ITR</button>
+                            </div>
+                        </div>
+                        break;
+
+                    case TipoPaso.Cierre:
+                        <div class="rs-actions">
+                            <button class="rs-btn" disabled="@_finMarcado" @onclick="MarcarFin">FIN del registro</button>
+                            <span class="rs-inline">Eritema bajo la correa o la banda:</span>
+                            <button class="rs-btn rs-btn-small @(_eritema == 0 ? "" : "rs-btn-quiet")" @onclick="() => Eritema(0)">No</button>
+                            <button class="rs-btn rs-btn-small @(_eritema == 1 ? "" : "rs-btn-quiet")" @onclick="() => Eritema(1)">Sí</button>
+                        </div>
+                        <h3 class="rs-subtitle">SUS · cuidador</h3>
+                        <SusForm Recorder="_rec" />
+                        break;
+                }
+
+                <div class="rs-staff-tools">
+                    <div class="rs-inline">
+                        PA <input type="number" class="rs-num" placeholder="sis" @bind="_paSis" />/<input type="number" class="rs-num" placeholder="dia" @bind="_paDia" />
+                        <button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="RegistrarPa">Registrar PA</button>
+                        SpO₂ <input type="number" class="rs-num" placeholder="%" @bind="_spo2" />
+                        <button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="RegistrarSpo2">Registrar</button>
+                    </div>
+                    <div class="rs-inline">
+                        <input class="rs-wide" placeholder="Desviación del protocolo y su motivo" @bind="_desviacion" />
+                        <button class="rs-btn rs-btn-small rs-btn-quiet" disabled="@string.IsNullOrWhiteSpace(_desviacion)" @onclick="RegistrarDesviacion">Registrar desviación</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_aviso))
+                    {
+                        <p class="rs-ok">@_aviso</p>
+                    }
+                </div>
+
+                <div class="rs-nav">
+                    @if (paso.ProrrogaMax > _prorroga)
+                    {
+                        <button class="rs-btn rs-btn-quiet" @onclick="Prorrogar">+1 min (@((paso.ProrrogaMax - _prorroga) / 60) disp.)</button>
+                    }
+                    @if (paso.Tipo == TipoPaso.Cierre)
+                    {
+                        <button class="rs-btn" disabled="@(!_finMarcado)" @onclick="CerrarSesion">Cerrar sesión y exportar</button>
+                    }
+                    else if (paso.Tipo != TipoPaso.CargaFisica)
+                    {
+                        <button class="rs-btn" disabled="@(!PuedeAvanzar)" @onclick="() => Avanzar(false)">Siguiente paso →</button>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="rs-child">
+            @if (TareaVisible == TareaNino.NBack)
+            {
+                <NBackTask @key="paso.Id" Recorder="_rec" />
+            }
+            else if (TareaVisible == TareaNino.Sensorial)
+            {
+                <SensoryBlock @key="paso.Id" Recorder="_rec" />
+            }
+            else if (TareaVisible == TareaNino.BajaDemanda)
+            {
+                <LowDemandTask @key="paso.Id" />
+            }
+            else if (paso.Tipo == TipoPaso.Cierre && _finMarcado)
+            {
+                <div class="rs-task rs-centered">
+                    <ScaleButtons Titulo="¿Te gustó usar la pulsera hoy?" Opciones="ScaleButtons.Agrado" Seleccion="_agrado" Grande="true"
+                                  OnSelect='v => { _agrado = v; return _rec.Valor("agrado", v, "puntos"); }' />
+                </div>
+            }
+            else
+            {
+                <div class="rs-task rs-centered"><p class="rs-rest">Descansa 🙂</p></div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public string Clave { get; set; } = "";
+
+    private record Motivo(int Codigo, string Texto);
+    // Criterios de terminación de §7.4 paso 2.4; el código va en fin_carga_motivo.
+    private static readonly Motivo[] MotivosFin =
+    {
+        new(1, "FC ≥ 170 lpm sostenida 30 s"), new(2, "OMNI ≥ 8"), new(3, "Síntomas"),
+        new(4, "Criterio pediátrico de terminación"), new(5, "Decisión del participante"), new(6, "Otro (registrar desviación)"),
+    };
+    private static readonly int[] MinutosPa = { 1, 3, 5, 10 };
+
+    private ResearchSession? _session;
+    private SessionRecorder? _rec;
+    private List<PasoSesion> _plan = new();
+    private bool _noEncontrada;
+    private int _idx;
+    private readonly Stopwatch _reloj = new();
+    private int _prorroga;
+    private bool _finPasoMarcado;
+    private readonly CancellationTokenSource _cts = new();
+    private bool _barraMin;
+    private string _aviso = "";
+
+    // Estado de cada tipo de paso
+    private int _toques, _motivoFin, _etapaFisica;
+    private int? _orificio, _potencia, _paSis, _paDia, _spo2;
+    private int? _omniEtapa, _omniRec, _agrado, _eritema, _itr;
+    private bool? _mclb;
+    private bool _inicioMarcado, _trasladoMarcado, _finMarcado, _itrCensurado;
+    private readonly HashSet<int> _paRegistrada = new();
+    private string _desviacion = "";
+
+    private PasoSesion Paso => _plan[_idx];
+    private int SegundosTranscurridos => (int)_reloj.Elapsed.TotalSeconds;
+    private int? DuracionTotal => Paso.Segundos is int s ? s + _prorroga : null;
+    private bool TiempoCumplido => DuracionTotal is int d && SegundosTranscurridos >= d;
+
+    private bool PuedeAvanzar => Paso.Tipo switch
+    {
+        TipoPaso.Instrumentacion     => _inicioMarcado,
+        TipoPaso.ValidacionLineaBase => _mclb.HasValue,
+        _                            => true,
+    };
+
+    // En la recuperación física el niño sigue 2 min en el cicloergómetro antes de la tarea.
+    private TareaNino TareaVisible =>
+        Paso.Tipo == TipoPaso.Recuperacion
+            ? (_trasladoMarcado ? TareaNino.BajaDemanda : TareaNino.Ninguna)
+            : Paso.Tarea;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _session = await Store.CargarAsync(Clave);
+        if (_session == null) { _noEncontrada = true; return; }
+
+        _plan = SessionPlan.Construir(_session.Orden);
+        _rec  = new SessionRecorder(Store, _session);
+        _idx  = Math.Clamp(_session.PasoActual, 0, _plan.Count - 1);
+
+        if (_session.Filas.Count > 0)
+            await _rec.Desviacion(Paso.Id, "Sesión reanudada tras recargar la tableta; el paso reinicia su cronómetro.");
+
+        await IniciarPaso();
+        await JS.InvokeVoidAsync("nbmResearch.keepAwake", true);
+        _ = Tic(_cts.Token);
+    }
+
+    private async Task Tic(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(250, ct);
+                if (_rec == null) continue;
+
+                if (Paso.Tipo == TipoPaso.CargaFisica) await TicFisica();
+                else if (TiempoCumplido && !_finPasoMarcado)
+                {
+                    _finPasoMarcado = true;
+                    await _rec.Marcar($"fin_{Paso.Id}");
+                    // Sin prórroga posible no hay nada que decidir: se avanza solo.
+                    if (Paso.ProrrogaMax == 0 && Paso.Tipo == TipoPaso.Temporizado) await Avanzar(true);
+                }
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task IniciarPaso()
+    {
+        _rec!.Fase   = Paso.Fase;
+        _rec.Bloque  = Paso.Bloque;
+        _prorroga    = 0;
+        _finPasoMarcado = false;
+        _etapaFisica = 0;
+        _session!.PasoActual = _idx;
+        await _rec.Marcar($"inicio_{Paso.Id}");
+        _reloj.Restart();
+        if (Paso.Tipo == TipoPaso.CargaFisica) _rec.Bloque = "fisica_previo";
+    }
+
+    private async Task Avanzar(bool automatico)
+    {
+        if (!automatico && DuracionTotal is int d && SegundosTranscurridos < d)
+        {
+            var ok = await JS.InvokeAsync<bool>("confirm", "El cronómetro no ha terminado. ¿Terminar este paso antes de tiempo? Se registrará como desviación.");
+            if (!ok) return;
+            await _rec!.Desviacion(Paso.Id, $"Paso terminado antes de tiempo (quedaban {d - SegundosTranscurridos} s).");
+        }
+        if (!_finPasoMarcado) await _rec!.Marcar($"fin_{Paso.Id}");
+        if (_idx >= _plan.Count - 1) return;
+        _idx++;
+        await IniciarPaso();
+    }
+
+    private async Task Prorrogar()
+    {
+        _prorroga += 60;
+        _finPasoMarcado = false;
+        await _rec!.Marcar("prorroga_60s");
+    }
+
+    private string Reloj()
+    {
+        if (Paso.Tipo == TipoPaso.CargaFisica)
+        {
+            var etapaSeg = EtapaDuracion(_etapaFisica);
+            var restante = etapaSeg - (int)_relojEtapa.Elapsed.TotalSeconds;
+            return $"{Fmt(Math.Max(0, restante))} · total {Fmt(SegundosTranscurridos)}";
+        }
+        return DuracionTotal is int d ? Fmt(Math.Max(0, d - SegundosTranscurridos)) : Fmt(SegundosTranscurridos);
+    }
+
+    private static string Fmt(int s) => $"{s / 60:00}:{s % 60:00}";
+
+    // ── Instrumentación ────────────────────────────────────────────────────────
+    private async Task Toque()
+    {
+        _toques++;
+        await _rec!.Marcar("sync_toque");
+    }
+
+    private async Task MarcarInicio()
+    {
+        _inicioMarcado = true;
+        await _rec!.Marcar("INICIO");
+    }
+
+    // ── MCLB ───────────────────────────────────────────────────────────────────
+    private async Task Mclb(bool valida)
+    {
+        _mclb = valida;
+        await _rec!.Valor("mclb_valida", valida ? 1 : 0, "binario");
+    }
+
+    // ── Carga física: previo 60 s, calentamiento 120 s, etapas de 120 s ────────
+    private readonly Stopwatch _relojEtapa = new();
+
+    private static int EtapaDuracion(int etapa) => etapa == 0 ? 60 : 120;
+
+    private string EtapaNombre() => _etapaFisica switch
+    {
+        0 => "Sentado en el cicloergómetro sin pedalear",
+        1 => "Calentamiento a 0.5 W/kg · 60 rpm",
+        _ => $"Etapa {_etapaFisica - 1} · +0.5 W/kg",
+    };
+
+    private string EtapaBloque(int etapa) => etapa switch
+    {
+        0 => "fisica_previo",
+        1 => "fisica_calentamiento",
+        _ => $"fisica_e{etapa - 1}",
+    };
+
+    private async Task TicFisica()
+    {
+        if (!_relojEtapa.IsRunning) _relojEtapa.Restart();
+        if (_relojEtapa.Elapsed.TotalSeconds < EtapaDuracion(_etapaFisica)) return;
+
+        await _rec!.Marcar("fin_etapa");
+        _etapaFisica++;
+        _omniEtapa = null;
+        _rec.Bloque = EtapaBloque(_etapaFisica);
+        await _rec.Marcar("inicio_etapa");
+        _relojEtapa.Restart();
+    }
+
+    private async Task RegistrarOmni(int v)
+    {
+        _omniEtapa = v;
+        await _rec!.Valor("omni", v, "puntos");
+    }
+
+    private async Task FinCarga()
+    {
+        await _rec!.Valor("fin_carga_motivo", _motivoFin, "codigo");
+        await _rec.Marcar("fin_carga");
+        _relojEtapa.Reset();
+        await Avanzar(true);
+        // La recuperación arranca en t₀: el niño deja de pedalear.
+        await _rec.Marcar("t0");
+    }
+
+    // ── Recuperación ───────────────────────────────────────────────────────────
+    private async Task Traslado()
+    {
+        _trasladoMarcado = true;
+        await _rec!.Marcar("traslado_silla");
+    }
+
+    private async Task RegistrarItr()
+    {
+        if (_itrCensurado) await _rec!.Valor("itr_censurado", 1, "binario");
+        else if (_itr.HasValue) await _rec!.Valor("itr_s", _itr, "s");
+        Aviso("ITR registrado");
+    }
+
+    // ── Cierre ─────────────────────────────────────────────────────────────────
+    private async Task MarcarFin()
+    {
+        _finMarcado = true;
+        await _rec!.Marcar("FIN");
+    }
+
+    private async Task Eritema(int v)
+    {
+        _eritema = v;
+        await _rec!.Valor("piel_eritema", v, "binario");
+    }
+
+    private async Task CerrarSesion()
+    {
+        _session!.CerradaUtc = DateTime.UtcNow;
+        await _rec!.Guardar();
+        await Store.DescargarAsync(_session);
+        await JS.InvokeVoidAsync("nbmResearch.keepAwake", false);
+        Nav.NavigateTo("/investigacion");
+    }
+
+    // ── Herramientas comunes ───────────────────────────────────────────────────
+    private async Task RegistrarPa()
+    {
+        if (_paSis is not > 0 || _paDia is not > 0) return;
+        await _rec!.Valor("pa_sis", _paSis, "mmHg");
+        await _rec.Valor("pa_dia", _paDia, "mmHg");
+        if (Paso.Tipo == TipoPaso.Recuperacion)
+        {
+            var minuto = MinutosPa.OrderBy(m => Math.Abs(m * 60 - SegundosTranscurridos)).First();
+            _paRegistrada.Add(minuto);
+        }
+        Aviso($"PA {_paSis}/{_paDia} registrada");
+        _paSis = _paDia = null;
+    }
+
+    private async Task RegistrarSpo2()
+    {
+        if (_spo2 is not > 0) return;
+        await _rec!.Valor("spo2", _spo2, "%");
+        Aviso($"SpO₂ {_spo2} % registrada");
+        _spo2 = null;
+    }
+
+    private async Task RegistrarDesviacion()
+    {
+        await _rec!.Desviacion(Paso.Id, _desviacion.Trim());
+        Aviso("Desviación registrada");
+        _desviacion = "";
+    }
+
+    private void Aviso(string texto) => _aviso = $"{DateTime.Now:HH:mm:ss} · {texto}";
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        try { await JS.InvokeVoidAsync("nbmResearch.keepAwake", false); } catch (JSDisconnectedException) { }
+    }
+}

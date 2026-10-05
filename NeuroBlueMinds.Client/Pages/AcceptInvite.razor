@@ -1,0 +1,196 @@
+@* NeuroBlueMinds.Client/Pages/AcceptInvite.razor
+   Specialist lands here from the email invite link.
+   Shows invite context (child name, parent) → user logs in or registers → access granted. *@
+@page "/accept-invite"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+
+<PageTitle>BlueMinds — Invitation</PageTitle>
+
+<div class="min-h-screen flex items-center justify-center px-6"
+     style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);">
+
+    <div class="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center">
+
+        @if (isLoading)
+        {
+            <div class="text-slate-500 animate-pulse">@Loc.T("common.loading")</div>
+        }
+        else if (error != null)
+        {
+            <div class="text-5xl mb-4">⚠️</div>
+            <h2 class="text-xl font-black text-slate-800 mb-3">Invalid invitation</h2>
+            <p class="text-slate-500 text-sm mb-6">@error</p>
+            <a href="/login" class="bg-blue-600 text-white font-black px-6 py-3 rounded-2xl inline-block hover:bg-blue-700 transition-all">
+                Go to login
+            </a>
+        }
+        else if (accepted)
+        {
+            <div class="text-5xl mb-4">🎉</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-3">Access granted!</h2>
+            <p class="text-slate-600 mb-2">You now have access to <strong>@childName</strong>'s Neuro-Profile.</p>
+            <p class="text-slate-500 text-sm mb-6">Go to your clinical dashboard to view their progress.</p>
+            <button @onclick='() => Nav.NavigateTo("/dashboard", forceLoad: true)'
+                    class="w-full bg-purple-600 text-white font-black py-4 rounded-2xl hover:bg-purple-700 transition-all">
+                Open Clinical Dashboard →
+            </button>
+        }
+        else if (inviteInfo != null)
+        {
+            <div class="text-5xl mb-4">🔬</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-2">You've been invited!</h2>
+            <p class="text-slate-500 text-sm mb-6">
+                <strong>@inviteInfo.ParentName</strong> has invited you to view
+                <strong>@inviteInfo.ChildName</strong>'s learning profile on BlueMinds.
+            </p>
+
+            <div class="bg-purple-50 rounded-2xl p-4 mb-6 text-left">
+                <div class="flex items-center gap-3 text-sm">
+                    <span class="material-symbols-outlined text-purple-500">child_care</span>
+                    <span class="text-slate-700"><strong>Child:</strong> @inviteInfo.ChildName</span>
+                </div>
+                <div class="flex items-center gap-3 text-sm mt-2">
+                    <span class="material-symbols-outlined text-purple-500">family_restroom</span>
+                    <span class="text-slate-700"><strong>Parent:</strong> @inviteInfo.ParentName</span>
+                </div>
+                <div class="flex items-center gap-3 text-sm mt-2">
+                    <span class="material-symbols-outlined text-purple-500">visibility</span>
+                    <span class="text-slate-700"><strong>Access level:</strong> @(inviteInfo.AccessLevel == "full" ? "Full clinical access (C1–C5)" : "View only (C1–C3)")</span>
+                </div>
+                @if (inviteInfo.ExpiresAt.HasValue)
+                {
+                    <div class="flex items-center gap-3 text-sm mt-2">
+                        <span class="material-symbols-outlined text-amber-500">schedule</span>
+                        <span class="text-amber-700"><strong>Expires:</strong> @inviteInfo.ExpiresAt.Value.ToString("MMM d, yyyy")</span>
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(acceptError))
+            {
+                <div class="bg-red-50 text-red-600 text-sm font-bold p-3 rounded-xl mb-4">@acceptError</div>
+            }
+
+            @if (isLoggedIn)
+            {
+                <button @onclick="AcceptInvitation" disabled="@isAccepting"
+                        class="w-full bg-purple-600 text-white font-black py-4 rounded-2xl hover:bg-purple-700 transition-all disabled:opacity-40 flex items-center justify-center gap-2 mb-3">
+                    @if (isAccepting) { <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> }
+                    <span>Accept invitation</span>
+                </button>
+                <button @onclick="Decline"
+                        class="w-full text-slate-400 font-bold py-2 text-sm hover:text-slate-600 transition-colors">
+                    Decline
+                </button>
+            }
+            else
+            {
+                <p class="text-slate-500 text-sm mb-4">
+                    You need to be logged in as a specialist to accept this invitation.
+                </p>
+                <button @onclick="GoLogin"
+                        class="w-full bg-purple-600 text-white font-black py-4 rounded-2xl hover:bg-purple-700 transition-all mb-3">
+                    Log in to accept
+                </button>
+                <button @onclick="GoRegister"
+                        class="w-full border-2 border-purple-200 text-purple-700 font-black py-3 rounded-2xl hover:bg-purple-50 transition-all">
+                    Create specialist account
+                </button>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private string?    token;
+    private InviteInfo? inviteInfo;
+    private bool       isLoading  = true;
+    private bool       isLoggedIn = false;
+    private bool       isAccepting = false;
+    private bool       accepted   = false;
+    private string?    error;
+    private string     acceptError = "";
+    private string     childName  = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Get token from URL
+        var uri   = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        token     = query["token"];
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            error = "No invitation token found in the URL.";
+            isLoading = false; StateHasChanged(); return;
+        }
+
+        // Check if already logged in
+        var authToken = await JS.InvokeAsync<string?>("localStorage.getItem", "authToken");
+        isLoggedIn = !string.IsNullOrEmpty(authToken);
+
+        try
+        {
+            var info = await Http.GetFromJsonAsync<InviteInfo>($"api/access/invite-info/{token}");
+            if (info == null || !info.Valid)
+            {
+                error = info?.Status == "revoked"
+                    ? "This invitation has been revoked by the parent."
+                    : "This invitation is invalid or has expired.";
+            }
+            else
+            {
+                inviteInfo = info;
+            }
+        }
+        catch
+        {
+            error = "Could not load invitation details. The link may be invalid.";
+        }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task AcceptInvitation()
+    {
+        if (string.IsNullOrEmpty(token)) return;
+        isAccepting = true; acceptError = "";
+        try
+        {
+            var response = await Http.PostAsync($"api/access/accept/{token}", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                acceptError = err?.Message ?? "Error accepting invitation.";
+                return;
+            }
+            var result = await response.Content.ReadFromJsonAsync<AcceptResult>();
+            childName = result?.ChildName ?? inviteInfo?.ChildName ?? "";
+            accepted  = true;
+        }
+        catch { acceptError = "Error accepting invitation. Please try again."; }
+        finally { isAccepting = false; StateHasChanged(); }
+    }
+
+    private void GoLogin()    => Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Nav.Uri)}");
+    private void GoRegister() => Nav.NavigateTo($"/register?returnUrl={Uri.EscapeDataString(Nav.Uri)}");
+    private void Decline()    => Nav.NavigateTo("/dashboard");
+
+    private class InviteInfo
+    {
+        public bool      Valid           { get; set; }
+        public string    Status          { get; set; } = "";
+        public string    ChildName       { get; set; } = "";
+        public string    ParentName      { get; set; } = "";
+        public string    SpecialistEmail { get; set; } = "";
+        public string    AccessLevel     { get; set; } = "";
+        public DateTime? ExpiresAt       { get; set; }
+    }
+    private class AcceptResult  { public string? ChildName { get; set; } }
+    private class ErrorResponse { public string? Message  { get; set; } }
+}

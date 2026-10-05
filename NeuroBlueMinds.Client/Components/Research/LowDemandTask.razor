@@ -1,0 +1,60 @@
+@* Tarea visual de muy baja demanda (Protocolo C&W-NM §7.4 paso 1.2): conteo silencioso
+   de figuras de colores durante la línea base y las recuperaciones. Las figuras
+   aparecen despacio y sin parpadeo; no hay respuestas que registrar. *@
+@implements IAsyncDisposable
+
+<div class="rs-task rs-lowdemand">
+    <p class="rs-lowdemand-instr">Cuenta en silencio las figuras <strong>@_colorObjetivo.Nombre</strong></p>
+    @foreach (var f in _figuras)
+    {
+        <span @key="f.Id" class="rs-shape rs-shape-@f.Forma" style="left:@(f.X)%;top:@(f.Y)%;background:@f.Color"></span>
+    }
+</div>
+
+@code {
+    private record ColorFig(string Nombre, string Css);
+    private record Figura(int Id, string Forma, string Color, int X, int Y);
+
+    private static readonly ColorFig[] Colores =
+    {
+        new("azules", "#60a5fa"), new("verdes", "#34d399"), new("amarillas", "#fbbf24"), new("moradas", "#a78bfa"),
+    };
+    private static readonly string[] Formas = { "circulo", "cuadrado", "rombo" };
+    private const int IntervaloMs = 4000, MaxFiguras = 10;
+
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Random _rnd = new();
+    private readonly List<Figura> _figuras = new();
+    private ColorFig _colorObjetivo = Colores[0];
+    private int _siguienteId;
+
+    protected override void OnInitialized()
+    {
+        _colorObjetivo = Colores[_rnd.Next(Colores.Length)];
+        _ = Correr(_cts.Token);
+    }
+
+    private async Task Correr(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(IntervaloMs, ct);
+                if (_figuras.Count >= MaxFiguras) _figuras.Clear();
+                var c = Colores[_rnd.Next(Colores.Length)];
+                _figuras.Add(new Figura(_siguienteId++, Formas[_rnd.Next(Formas.Length)], c.Css,
+                                        _rnd.Next(8, 88), _rnd.Next(18, 82)));
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

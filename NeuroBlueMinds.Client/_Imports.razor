@@ -1,0 +1,26 @@
+@* NeuroBlueMinds.Client/_Imports.razor — COMPLETE REPLACEMENT *@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+@using System.Security.Claims
+@using System.Net.Http.Json
+
+@* Shared project namespaces *@
+@using NeuroBlueMinds.Shared.DTOs
+@using NeuroBlueMinds.Shared.DbModels
+@using NeuroBlueMinds.Shared.Enums
+@using NeuroBlueMinds.Shared.Interfaces
+ @using NeuroBlueMinds.Client.Services;
+
+@* Client project namespaces *@
+@using NeuroBlueMinds.Client
+
+@* New components — registered globally so no per-file @using needed *@
+@using NeuroBlueMinds.Client.Components
+@using NeuroBlueMinds.Client.Components.Dashboards
+@using NeuroBlueMinds.Client.Layout

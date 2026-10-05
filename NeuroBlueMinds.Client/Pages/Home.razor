@@ -1,0 +1,122 @@
+﻿@page "/home"
+
+<main class="min-h-screen bg-[#f0f9ff] font-sans antialiased pb-12">
+    <div class="container mx-auto px-4 pt-12">
+        
+        <div class="flex flex-col lg:flex-row items-center justify-between gap-12 mb-20">
+            
+            <div class="flex-1 text-center lg:text-left space-y-8">
+                <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full border border-[#00B4D8]/30 text-[#00B4D8] font-semibold text-sm shadow-sm">
+                    <span class="material-symbols-outlined text-base">nest_eco_leaf</span>
+                    <span>Plataforma de Educación Inclusiva</span>
+                </div>
+
+                <div class="space-y-4">
+                    <h1 class="text-5xl lg:text-6xl font-extrabold text-dark leading-tight">
+                        Bienvenido a <span class="text-primary">BlueMinds</span>
+                    </h1>
+                    <p class="text-lg text-gray-600 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                          Una plataforma educativa diseñada para niños con necesidades especiales, con minijuegos interactivos que ayudan en el desarrollo de habilidades cognitivas, sociales y emocionales.
+                    </p>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
+                    <button onclick="window.location.href='login.html?action=register'" 
+                            class="w-full sm:w-auto px-8 py-4 cursor-pointer bg-secondary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:scale-105 hover:shadow-lg transition-all shadow-md">
+                        <span class="material-symbols-outlined">person_add</span>
+                        Crear Cuenta
+                    </button>
+                    <a href="/login"
+                            class="w-full sm:w-auto px-8 py-4 bg-white cursor-pointer border-2 border-secondary text-secondary rounded-2xl font-bold hover:bg-secondary/5 hover:scale-105 transition-all">
+                        Iniciar Sesión
+                    </a>
+                </div>
+            </div>
+
+            <div class="flex-1 flex justify-center items-center">
+                <div class="relative w-72 h-72 sm:w-96 sm:h-96 bg-white/50 rounded-[4rem] flex items-center justify-center p-8 shadow-inner overflow-hidden border border-white/80 group">
+                    <img id="mascot-img" src="@_currentMascot" 
+                         alt="Mascota BlueMinds" 
+                         class="w-full h-full object-contain drop-shadow-2xl group-hover:scale-110 transition-transform duration-500 @(_shouldPulse ? "animate-once" : "")">
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-shadow border border-gray-50 flex flex-col items-center text-center">
+                <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mb-6">
+                    <span class="material-symbols-outlined text-4xl">psychology</span>
+                </div>
+                <h3 class="text-xl font-bold text-dark mb-3">Desarrollo Cognitivo</h3>
+                <p class="text-gray-500">Actividades diseñadas para estimular el pensamiento y la memoria.</p>
+            </div>
+
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-shadow border border-gray-50 flex flex-col items-center text-center">
+                <div class="w-16 h-16 bg-purple-50 text-brand-purple rounded-2xl flex items-center justify-center mb-6">
+                    <span class="material-symbols-outlined text-4xl">group</span>
+                </div>
+                <h3 class="text-xl font-bold text-dark mb-3">Habilidades Sociales</h3>
+                <p class="text-gray-500">Aprende a comunicarte y relacionarte de forma efectiva.</p>
+            </div>
+
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-shadow border border-gray-50 flex flex-col items-center text-center">
+                <div class="w-16 h-16 bg-green-50 text-green-500 rounded-2xl flex items-center justify-center mb-6">
+                    <span class="material-symbols-outlined text-4xl">trending_up</span>
+                </div>
+                <h3 class="text-xl font-bold text-dark mb-3">Progreso Personalizado</h3>
+                <p class="text-gray-500">Seguimiento de tu avance con reportes detallados.</p>
+            </div>
+
+        </div>
+    </div>
+</main>
+@using System.Timers
+
+@code {
+    private string _currentMascot = "mascotas/mascota.png";
+    private bool _shouldPulse = false;
+    private int _currentIndex = 0;
+    private Timer? _timer;
+
+    private readonly List<string> _mascotImages = new()
+    {
+        "mascotas/dino edu.jpeg",
+        "mascotas/dino feliz.jpeg",
+        "mascotas/dinoagua.jpeg",
+        "mascotas/dinoaudi.jpeg",
+        "mascotas/dinoflor.jpeg",
+        "mascotas/dinomanta.jpeg",
+        "mascotas/dinopelota.jpeg",
+        "mascotas/dinosaludo.jpeg",
+        "mascotas/dinotable.jpeg",
+        "mascotas/mascota.png"
+    };
+
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(3500);
+        _timer.Elapsed += ChangeImage;
+        _timer.AutoReset = true;
+        _timer.Enabled = true;
+    }
+
+    private async void ChangeImage(object? sender, ElapsedEventArgs e)
+    {
+        _currentIndex = (_currentIndex + 1) % _mascotImages.Count;
+        _currentMascot = _mascotImages[_currentIndex];
+
+        // Disparamos el pulso
+        _shouldPulse = true;
+        await InvokeAsync(StateHasChanged);
+
+        // Esperamos un poquito y quitamos la clase para que pueda volver a activarse
+        await Task.Delay(500); 
+        _shouldPulse = false;
+        await InvokeAsync(StateHasChanged);
+    }
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

@@ -1,0 +1,153 @@
+@* AchievementBadges.razor — Displays earned and locked achievement badges for a child profile *@
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ILogger<AchievementBadges> Logger
+
+@if (_loading)
+{
+    <div class="grid grid-cols-3 gap-3">
+        @for (int i = 0; i < 6; i++)
+        {
+            <div class="bg-slate-100 rounded-2xl h-24 animate-pulse"></div>
+        }
+    </div>
+}
+else
+{
+    @* ── New badge celebration ─────────────────────────────────────────────── *@
+    @if (_newBadges.Any())
+    {
+        <div class="bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl p-4 mb-4 text-white shadow-lg">
+            <p class="font-black text-base mb-2">🎉 ¡Lograste @_newBadges.Count insignia@(_newBadges.Count > 1 ? "s" : "") nueva@(_newBadges.Count > 1 ? "s" : "")!</p>
+            <div class="flex flex-wrap gap-2">
+                @foreach (var b in _newBadges)
+                {
+                    <span class="bg-white/30 rounded-xl px-3 py-1 text-sm font-bold">@b.Emoji @b.Title</span>
+                }
+            </div>
+        </div>
+    }
+
+    @* ── Earned badges ─────────────────────────────────────────────────────── *@
+    @if (_earned.Any())
+    {
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            @foreach (var badge in _earned)
+            {
+                <div class="bg-gradient-to-br from-amber-50 to-yellow-100 border-2 border-amber-300
+                            rounded-2xl p-3 flex flex-col items-center text-center gap-1
+                            hover:scale-105 transition-transform cursor-pointer"
+                     title="@badge.Description — +@badge.XpAwarded XP · @badge.EarnedAt.ToString("d MMM yyyy")">
+                    <span class="text-3xl">@badge.Emoji</span>
+                    <span class="text-xs font-black text-amber-800 leading-tight">@badge.Title</span>
+                    <span class="text-[10px] text-amber-600 font-bold">+@badge.XpAwarded XP</span>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Locked badges ─────────────────────────────────────────────────────── *@
+    @if (_locked.Any())
+    {
+        <p class="text-xs font-bold text-slate-400 uppercase mb-2">Por desbloquear</p>
+        <div class="grid grid-cols-3 gap-3">
+            @foreach (var (type, info) in _locked)
+            {
+                <div class="bg-slate-100 border-2 border-slate-200 rounded-2xl p-3
+                            flex flex-col items-center text-center gap-1 opacity-50"
+                     title="@info.Description">
+                    <span class="text-3xl grayscale">@info.Emoji</span>
+                    <span class="text-xs font-black text-slate-500 leading-tight">@info.Title</span>
+                    <span class="text-[10px] text-slate-400 font-bold">+@info.Xp XP</span>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ChildProfileId { get; set; }
+    [Parameter] public bool AutoEvaluate  { get; set; } = false;
+
+    private bool _loading = true;
+    private List<BadgeRow> _earned  = new();
+    private List<(string Type, BadgeInfo Info)> _locked = new();
+    private List<BadgeRow> _newBadges = new();
+
+    private static readonly Dictionary<string, BadgeInfo> AllBadges = new()
+    {
+        ["first_game"]       = new("¡Primer Juego!",          "🎮", "Completa tu primer juego.",                               50),
+        ["streak_3"]         = new("Racha de 3 días",          "🔥", "Juega 3 días seguidos.",                                 100),
+        ["streak_7"]         = new("Racha Semanal",            "🔥", "Juega 7 días seguidos.",                                 250),
+        ["streak_30"]        = new("Maestro Constancia",       "🏆", "30 días seguidos de práctica.",                         1000),
+        ["accuracy_80"]      = new("Precisión Experta",        "🎯", "Alcanza 80% de precisión en un juego.",                  150),
+        ["accuracy_95"]      = new("Precisión Perfecta",       "⭐", "95% de precisión — casi sin errores.",                   300),
+        ["quiz_complete"]    = new("Quiz Completo",            "📝", "Termina tu primer quiz de aprendizaje.",                   75),
+        ["vark_complete"]    = new("Estilo Descubierto",       "🧠", "Completa la evaluación VARK.",                           100),
+        ["games_10"]         = new("10 Juegos",                "🎯", "Completa 10 juegos.",                                    200),
+        ["games_50"]         = new("50 Juegos",                "🎪", "Completa 50 juegos.",                                    500),
+        ["milestone_1"]      = new("Primer Hito",              "🌟", "Completa tu primer hito del roadmap.",                   100),
+        ["milestone_5"]      = new("Explorador",               "🗺️",  "Completa 5 hitos del roadmap.",                         300),
+        ["level_adventurer"] = new("Aventurero",               "⚔️",  "Sube al nivel Aventurero.",                             200),
+        ["level_master"]     = new("Maestro",                  "👑", "Alcanza el nivel Maestro — el máximo.",                  500),
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ChildProfileId <= 0) return;
+        await LoadBadgesAsync();
+    }
+
+    private async Task LoadBadgesAsync()
+    {
+        _loading = true;
+        try
+        {
+            // Optionally trigger server-side evaluation first
+            if (AutoEvaluate)
+            {
+                try
+                {
+                    var evalResp = await Http.PostAsync($"api/achievements/{ChildProfileId}/evaluate", null);
+                    if (evalResp.IsSuccessStatusCode)
+                    {
+                        var evalResult = await evalResp.Content.ReadFromJsonAsync<EvalResult>();
+                        if (evalResult?.NewBadges != null)
+                            _newBadges = evalResult.NewBadges;
+                    }
+                }
+                catch (Exception ex) { Logger.LogWarning(ex, "[AchievementBadges] Auto-evaluate failed."); }
+            }
+
+            var badges = await Http.GetFromJsonAsync<List<BadgeRow>>($"api/achievements/{ChildProfileId}");
+            _earned = badges ?? new();
+
+            var earnedTypes = _earned.Select(b => b.BadgeType).ToHashSet();
+            _locked = AllBadges
+                .Where(kv => !earnedTypes.Contains(kv.Key))
+                .Select(kv => (kv.Key, kv.Value))
+                .ToList();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "[AchievementBadges] Error loading badges for profile {Id}.", ChildProfileId); }
+        finally { _loading = false; }
+    }
+
+    private record BadgeInfo(string Title, string Emoji, string Description, int Xp);
+
+    private class BadgeRow
+    {
+        public int      Id          { get; set; }
+        public string   BadgeType   { get; set; } = "";
+        public string?  Title       { get; set; }
+        public string?  Emoji       { get; set; }
+        public string?  Description { get; set; }
+        public int      XpAwarded   { get; set; }
+        public DateTime EarnedAt    { get; set; }
+    }
+
+    private class EvalResult
+    {
+        public int           NewBadgesCount { get; set; }
+        public List<BadgeRow>? NewBadges    { get; set; }
+    }
+}

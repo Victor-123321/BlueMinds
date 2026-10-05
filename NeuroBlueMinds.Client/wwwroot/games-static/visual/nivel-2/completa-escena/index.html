@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Completa la Escena - BlueMinds IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="game-container">
+    <header class="game-header">
+      <div class="back-button">
+        <button onclick="goToMainPage()">
+          <i class="fas fa-arrow-left"></i> Volver
+        </button>
+      </div>
+      <h1 class="game-title">Completa la Escena IA</h1>
+      <div class="ai-status">
+        <span id="score-display" data-i18n-suffix=" puntos">0</span>
+        <button class="audio-toggle" onclick="toggleAudio()" title="Activar/Desactivar audio">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <div class="ai-indicator" title="IA adaptativa activa">
+          <i class="fas fa-robot"></i>
+          <span>IA</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="game-content">
+      <div class="progress-card">
+        <div class="progress-header">
+          <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+          <span id="score">0 puntos</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="game-card">
+        <div id="difficulty-indicator" class="difficulty-indicator" style="display: none;"></div>
+        <div id="hint-box" class="hint-box" style="display: none;"></div>
+
+        <h2>¡Completa la oración!</h2>
+
+        <div class="sentence-display" id="sentence-display"></div>
+
+        <p style="font-size: 16px; margin-bottom: 15px; color: #777;">Selecciona la imagen correcta:</p>
+        <div class="options-display" id="options-display"></div>
+
+        <div class="action-buttons">
+          <button class="action-button primary" onclick="checkAnswer()">
+            <i class="fas fa-check"></i> Verificar
+          </button>
+          <button class="action-button secondary" onclick="resetAnswer()">
+            <i class="fas fa-redo"></i> Reiniciar
+          </button>
+        </div>
+
+        <div id="feedback" class="feedback">
+          <span id="feedback-text"></span>
+        </div>
+
+        <div id="ai-analysis" class="ai-analysis">
+          <strong>📊 Análisis IA:</strong> <span id="analysis-text"></span>
+        </div>
+      </div>
+
+      <div class="instructions-card">
+        <p>🤖 <strong>IA Adaptativa:</strong> El sistema ajusta el tipo de oración y distractores según tu desempeño en
+          categorización visual-verbal.</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ===== AUDIO MANAGER =====
+    class AudioManager {
+      constructor() {
+        this.synth = window.speechSynthesis;
+        this.audioEnabled = true;
+      }
+      speak(text, rate = 1) {
+        if (!this.audioEnabled) return;
+        this.synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = rate;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        utterance.lang = 'es-ES';
+        this.synth.speak(utterance);
+      }
+      toggleAudio() {
+        this.audioEnabled = !this.audioEnabled;
+        return this.audioEnabled;
+      }
+    }
+
+    const audioManager = new AudioManager();
+
+    function toggleAudio() {
+      const isEnabled = audioManager.toggleAudio();
+      const button = document.querySelector('.audio-toggle');
+      if (isEnabled) {
+        button.innerHTML = '<i class="fas fa-volume-up"></i>';
+        audioManager.speak('Audio activado');
+      } else {
+        button.innerHTML = '<i class="fas fa-volume-mute"></i>';
+      }
+    }
+  </script>
+
+  <script src="script.js"></script>
+
+  <script src="../../../../api.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+
+</html>

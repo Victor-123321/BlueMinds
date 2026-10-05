@@ -1,0 +1,294 @@
+:root {
+    --primary-color: #0066CC;
+    --secondary-color: #00B4D8;
+    --blue-color: #00B4D8;
+    --purple-color: #ce82ff;
+    --orange-color: #ff9600;
+    --red-color: #ff4b4b;
+    --light-bg: #f7f7f7;
+    --white: #ffffff;
+    --dark-text: #3c3c3c;
+    --light-text: #777;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --border-radius: 16px;
+    --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* --- ESTILOS GENERALES Y FUENTES --- */
+body {
+    font-family: 'Nunito', sans-serif;
+    background-color: #9bdbf8;
+    color: var(--dark-text);
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* --- SECCIÓN DE PROGRESO GENERAL --- */
+.overall-progress {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 25px 30px;
+    margin-top: 30px;
+    box-shadow: var(--shadow);
+    border-left: 5px solid var(--primary-color);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.progress-header h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--dark-text);
+}
+
+.progress-count {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--light-text);
+    background-color: var(--light-bg);
+    padding: 8px 15px;
+    border-radius: 20px;
+}
+
+/* --- BARRA DE PROGRESO DE NIVELES --- */
+.level-path {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.level-path-progress {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    height: 8px;
+    background: linear-gradient(90deg, #0066CC, #00B4D8);
+    border-radius: 4px;
+    transform: translateY(-50%);
+    transition: width 1s ease-out;
+    z-index: 1;
+}
+
+.flag-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+}
+
+.flag-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--light-bg);
+    border: 3px solid #ccc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #ccc;
+    font-size: 14px;
+    transition: var(--transition);
+    margin-bottom: 8px;
+}
+
+.flag-item.completed .flag-circle {
+    background-color: #0066CC;
+    border-color: #0066CC;
+    color: var(--white);
+}
+
+.flag-item.current .flag-circle {
+    background-color: #00B4D8;
+    border-color: #00B4D8;
+    color: var(--white);
+    animation: pulse 2s infinite;
+}
+
+.flag-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--light-text);
+}
+
+/* --- SECCIÓN DE CATEGORÍAS --- */
+.categories-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    margin-top: 30px;
+    margin-bottom: 40px;
+}
+
+.category-card {
+    background-color: var(--white);
+    border-radius: var(--border-radius);
+    padding: 30px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: var(--transition);
+    border-top: 5px solid transparent;
+}
+
+.category-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+}
+
+.category-card.language {
+    border-top-color: #0066CC;
+}
+
+.category-card.behavior {
+    border-top-color: #00B4D8;
+}
+
+.category-card.occupational {
+    border-top-color: var(--orange-color);
+}
+
+.category-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.category-card.language .category-icon {
+    color: #0066CC;
+}
+
+.category-card.behavior .category-icon {
+    color: #00B4D8;
+}
+
+.category-card.occupational .category-icon {
+    color: var(--orange-color);
+}
+
+.category-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.category-description {
+    font-size: 15px;
+    color: var(--light-text);
+    margin-bottom: 25px;
+    min-height: 45px;
+}
+
+/* --- BARRA DE PROGRESO INTERNA DE LA CATEGORÍA --- */
+.category-level-path {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.category-level-progress {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #58cc02, #89e219);
+    border-radius: 3px;
+    transform: translateY(-50%);
+    transition: width 1s ease-out;
+    z-index: 1;
+}
+
+.category-flag {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: var(--light-bg);
+    border: 2px solid #ddd;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #ddd;
+    font-size: 10px;
+    transition: var(--transition);
+    position: relative;
+    z-index: 2;
+}
+
+.category-flag.completed {
+    background-color: #58cc02;
+    border-color: #58cc02;
+    color: var(--white);
+}
+
+/* --- FOOTER --- */
+footer {
+    background-color: var(--white);
+    padding: 20px 0;
+    margin-top: 40px;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.footer-links a {
+    color: var(--light-text);
+    text-decoration: none;
+    margin-left: 20px;
+    transition: var(--transition);
+}
+
+.footer-links a:hover {
+    color: var(--primary-color);
+}
+
+/* --- ANIMACIONES --- */
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0, 102, 204, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(0, 102, 204, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 102, 204, 0); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@media (max-width: 768px) {
+    .categories-section {
+        grid-template-columns: 1fr;
+    }
+
+    .progress-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .flag-label {
+        font-size: 10px;
+    }
+}

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atención Conjunta con Sonido - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Atención Conjunta con Sonido</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <!-- Progress -->
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                    <span id="score">0 puntos</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Main Game Card -->
+            <div class="attention-card">
+                <h2>Sigue el Objeto y Repite la Palabra 👀</h2>
+
+                <!-- Eye Tracking Info -->
+                <div class="eye-tracking-info">
+                    <i class="fas fa-eye"></i>
+                    <span>Abre la cámara para seguimiento de mirada</span>
+                </div>
+
+                <!-- Camera Section -->
+                <div class="camera-section">
+                    <div class="camera-controls">
+                        <button class="camera-btn start" id="startCameraBtn" onclick="startCamera()">
+                            <i class="fas fa-video"></i> Iniciar Cámara
+                        </button>
+                        <button class="camera-btn stop" id="stopCameraBtn" onclick="stopCamera()" style="display: none;">
+                            <i class="fas fa-stop"></i> Detener
+                        </button>
+                    </div>
+
+                    <div class="camera-container">
+                        <div class="camera-feed" id="cameraFeedContainer">
+                            <video id="cameraFeed" style="display: none;"></video>
+                            <span id="cameraPlaceholder">La cámara se abrirá aquí</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Moving Object Container -->
+                <div class="object-stage">
+                    <div id="moving-object" class="moving-object">
+                        <div class="object-visual"></div>
+                        <div class="object-label" id="object-label">🎈</div>
+                    </div>
+                    
+                    <!-- Gaze Tracking Visualization -->
+                    <div class="gaze-point" id="gazePoint" style="display: none;"></div>
+                </div>
+
+                <!-- Word Display -->
+                <div class="word-display-section">
+                    <div id="word-display" class="word-display">
+                        Escucha la palabra
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="action-controls">
+                    <button id="start-button" class="action-button primary">
+                        <i class="fas fa-play"></i> Iniciar Actividad
+                    </button>
+                </div>
+
+                <!-- Speech Recognition Section -->
+                <div class="speech-section" id="speechSection" style="display: none;">
+                    <h4>🎤 Repite la Palabra</h4>
+                    <button id="listen-button" class="listen-button">
+                        <i class="fas fa-microphone"></i> Escuchar
+                    </button>
+                    <div id="speech-feedback" class="speech-feedback hidden">
+                        <span id="speech-text"></span>
+                    </div>
+                </div>
+
+                <!-- Adaptation Notice -->
+                <div id="adaptationNotice" class="adaptation-notice hidden">
+                    <i class="fas fa-lightbulb"></i>
+                    <span id="adaptationText"></span>
+                </div>
+
+                <!-- Feedback -->
+                <div id="feedback" class="feedback hidden">
+                    <span id="feedback-text"></span>
+                </div>
+
+                <!-- Eye Tracking Analysis -->
+                <div class="analysis-section" id="analysisSection" style="display: none;">
+                    <div class="analysis-card">
+                        <h4>👁️ Análisis de Seguimiento Visual</h4>
+                        
+                        <div class="analysis-metrics">
+                            <div class="metric">
+                                <span class="metric-label">Seguimiento Visual:</span>
+                                <div class="progress-bar-small">
+                                    <div class="progress-fill-small" id="gazeFollowingProgress"></div>
+                                </div>
+                                <span class="metric-value" id="gazeFollowing">--%</span>
+                            </div>
+
+                            <div class="metric">
+                                <span class="metric-label">Respuesta al Sonido:</span>
+                                <div class="progress-bar-small">
+                                    <div class="progress-fill-small" id="soundResponseProgress"></div>
+                                </div>
+                                <span class="metric-value" id="soundResponse">--%</span>
+                            </div>
+
+                            <div class="metric">
+                                <span class="metric-label">Estabilidad de Atención:</span>
+                                <div class="progress-bar-small">
+                                    <div class="progress-fill-small" id="attentionStabilityProgress"></div>
+                                </div>
+                                <span class="metric-value" id="attentionStability">--%</span>
+                            </div>
+
+                            <div class="metric">
+                                <span class="metric-label">Distractibilidad:</span>
+                                <span class="metric-value" id="distractibility">Baja</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Distraction Elements (for testing) -->
+                <div id="distraction-container" style="display: none;">
+                    <div class="distraction-element"></div>
+                    <div class="distraction-element"></div>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions-card">
+                <p>
+                    💡 <span class="font-bold">Cómo jugar:</span> Abre la cámara para que podamos ver hacia dónde miras. Luego, sigue el objeto con la mirada y repite la palabra que escuchas.
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

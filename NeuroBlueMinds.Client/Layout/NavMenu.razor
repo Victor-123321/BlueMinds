@@ -1,0 +1,221 @@
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-b border-slate-100 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
+
+        <a href="/dashboard" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <img src="android-chrome-512x512.png" class="w-8 h-8 rounded-lg" alt="BlueMinds" />
+            <span class="font-black text-blue-700 text-lg hidden sm:block">BlueMinds</span>
+        </a>
+
+        <div class="flex items-center gap-1">
+            <AuthorizeView>
+                <Authorized>
+                    <NavLink href="/dashboard"
+                             class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-all"
+                             ActiveClass="bg-blue-50 text-blue-700">
+                        <span class="material-symbols-outlined" style="font-size:18px">home</span>
+                        <span class="hidden md:inline">@Loc.T("nav.dashboard")</span>
+                    </NavLink>
+
+                    @if (role == "child")
+                    {
+                        <NavLink href="/quiz"
+                                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-all"
+                                 ActiveClass="bg-blue-50 text-blue-700">
+                            <span class="material-symbols-outlined" style="font-size:18px">assignment</span>
+                            <span class="hidden md:inline">@Loc.T("nav.quiz")</span>
+                        </NavLink>
+                    }
+
+                    @if (role is "parent" or "specialist" or "admin")
+                    {
+                        <NavLink href="/progreso"
+                                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-all"
+                                 ActiveClass="bg-blue-50 text-blue-700">
+                            <span class="material-symbols-outlined" style="font-size:18px">analytics</span>
+                            <span class="hidden md:inline">@Loc.T("nav.progress")</span>
+                        </NavLink>
+                        <NavLink href="/quiz"
+                                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-all"
+                                 ActiveClass="bg-blue-50 text-blue-700">
+                            <span class="material-symbols-outlined" style="font-size:18px">assignment</span>
+                            <span class="hidden md:inline">@Loc.T("nav.quiz")</span>
+                        </NavLink>
+                    }
+
+                    @if (role == "admin")
+                    {
+                        <NavLink href="/admin"
+                                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all"
+                                 ActiveClass="bg-red-50 text-red-700">
+                            <span class="material-symbols-outlined" style="font-size:18px">admin_panel_settings</span>
+                            <span class="hidden md:inline">@Loc.T("nav.admin_panel")</span>
+                        </NavLink>
+                    }
+
+                    @if (role == "parent")
+                    {
+                        <NavLink href="/family/access"
+                                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-all"
+                                 ActiveClass="bg-purple-50 text-purple-700">
+                            <span class="material-symbols-outlined" style="font-size:18px">manage_accounts</span>
+                            <span class="hidden md:inline">Access</span>
+                        </NavLink>
+                    }
+
+                    <NavLink href="/perfil"
+                             class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-all"
+                             ActiveClass="bg-blue-50 text-blue-700">
+                        <span class="material-symbols-outlined" style="font-size:18px">person</span>
+                        <span class="hidden md:inline">@Loc.T("nav.profile")</span>
+                    </NavLink>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <AuthorizeView>
+                <Authorized>
+                    @* Language switcher pill *@
+                    <div class="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
+                        @foreach (var locale in new[] { ("es-MX","ES"), ("en-US","EN") })
+                        {
+                            var (code, label) = locale;
+                            <button @onclick='() => SwitchLocale(code)'
+                                    class="px-3 py-1 rounded-lg text-xs font-black transition-all @(Loc.CurrentLocale == code ? "bg-white text-blue-700 shadow-sm" : "text-slate-400 hover:text-slate-600")">
+                                @label
+                            </button>
+                        }
+                    </div>
+
+                    @* ── Avatar: photo URL → <img>, emoji → styled div, else → initials circle ── *@
+                    @if (IsPhotoUrl(userPicture))
+                    {
+                        <img src="@userPicture"
+                             class="w-9 h-9 rounded-full object-cover border-2 border-blue-200 hidden sm:block shadow-sm"
+                             alt="@userPicture" />
+                    }
+                    else if (IsEmoji(userPicture))
+                    {
+                        @* Emoji avatar from child profile selector *@
+                        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-100 to-purple-100
+                                    flex items-center justify-center overflow-hidden
+                                    border-2 border-blue-300 shadow-sm hidden sm:flex shrink-0"
+                             style="font-size:1.4rem; line-height:1; user-select:none;">
+                            @userPicture
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600
+                                    flex items-center justify-center text-white font-black text-sm
+                                    border-2 border-blue-200 shadow-sm hidden sm:flex shrink-0">
+                            @GetInitials(userName)
+                        </div>
+                    }
+                    <span class="hidden sm:block text-sm font-bold text-slate-700 max-w-[100px] truncate">@GetDisplayName(userName)</span>
+
+                    @if (isChildSession)
+                    {
+                        <button @onclick="SwitchChild"
+                                class="flex items-center gap-1 bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors font-bold text-sm px-3 py-1 rounded-lg">
+                            <span class="material-symbols-outlined" style="font-size:16px">switch_account</span>
+                            <span class="hidden sm:inline">@Loc.T("nav.switch_profile")</span>
+                        </button>
+                    }
+                    <button @onclick="Logout"
+                            class="flex items-center gap-1 text-slate-400 hover:text-red-500 transition-colors font-bold text-sm px-2 py-1 rounded-lg hover:bg-red-50">
+                        <span class="material-symbols-outlined" style="font-size:20px">logout</span>
+                        <span class="hidden sm:inline">@Loc.T("nav.logout")</span>
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</nav>
+<div class="h-16"></div>
+
+@code {
+    private string role = "child", userName = "", userPicture = "";
+    private bool isChildSession = false;
+
+    protected override void OnInitialized()
+    {
+        Loc.OnLocaleChanged += StateHasChanged;
+        _ = LoadUserAsync();
+    }
+    public void Dispose() => Loc.OnLocaleChanged -= StateHasChanged;
+
+    private async Task LoadUserAsync()
+    {
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            role        = auth.User.FindFirst(ClaimTypes.Role)?.Value  ?? "child";
+            userName    = auth.User.FindFirst(ClaimTypes.Name)?.Value  ?? "";
+            userPicture = auth.User.FindFirst("picture")?.Value        ?? "";
+            var childToken = await JS.InvokeAsync<string?>("localStorage.getItem", "childToken");
+            isChildSession = !string.IsNullOrEmpty(childToken);
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    // ── Avatar helpers ────────────────────────────────────────────────────────
+
+    // Returns true when the value is a real photo URL (Google OAuth, uploaded photo).
+    private static bool IsPhotoUrl(string? pic) =>
+        !string.IsNullOrEmpty(pic) && (pic.StartsWith("http") || pic.StartsWith("/"));
+
+    // Returns true when the value looks like an emoji avatar (short, non-ASCII, non-URL).
+    // Child profile avatars are 1–2 emoji characters stored in ChildProfile.Avatar.
+    private static bool IsEmoji(string? pic)
+    {
+        if (string.IsNullOrWhiteSpace(pic)) return false;
+        if (IsPhotoUrl(pic)) return false;
+        // An emoji cluster is very short (≤ 4 char16 code units covers all standard emoji + ZWJ sequences)
+        // Plain ASCII names/usernames are excluded so stray text never renders as avatar.
+        return pic.Length <= 8 && pic.Any(c => c > 127);
+    }
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{char.ToUpper(parts[0][0])}{char.ToUpper(parts[1][0])}"
+            : char.ToUpper(name[0]).ToString();
+    }
+
+    // Trim the display name — if it's an email address show only the part before @
+    private static string GetDisplayName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+        if (name.Contains('@')) return name.Split('@')[0];
+        return name.Length > 14 ? name[..14] + "…" : name;
+    }
+
+    private async Task SwitchLocale(string locale) => await Loc.SetLocaleAsync(locale);
+
+    private async Task SwitchChild()
+    {
+        await JS.InvokeVoidAsync("localStorage.removeItem", "childToken");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildId");
+        await JS.InvokeVoidAsync("localStorage.removeItem", "activeChildName");
+        Nav.NavigateTo("/family", forceLoad: true);
+    }
+
+    private async Task Logout()
+    {
+        foreach (var key in new[] { "authToken","childToken","parentToken","parentEmail","parentName",
+            "parentPicture","activeChildId","activeChildName","cachedChildren","lastActiveAt","locale","loginMethod" })
+            await JS.InvokeVoidAsync("localStorage.removeItem", key);
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

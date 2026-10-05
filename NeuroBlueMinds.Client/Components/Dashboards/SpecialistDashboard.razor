@@ -1,0 +1,934 @@
+@* NeuroBlueMinds.Client/Components/Dashboards/SpecialistDashboard.razor
+   SPECIALIST VIEW — clinical data layers C1-C5, patient list, notes, reports *@
+@namespace NeuroBlueMinds.Client.Components.Dashboards
+
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@using Microsoft.Extensions.Logging
+@using Microsoft.JSInterop
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject ClientLocalizationService Loc
+@inject ILogger<SpecialistDashboard> Logger
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>@Loc.T("specialist.dashboard.title") - BlueMinds</PageTitle>
+
+<div class="min-h-screen bg-slate-100 pb-24">
+
+    @* ── Header ── *@
+    <div class="bg-gradient-to-r from-slate-800 to-slate-700 pt-8 pb-16 px-6">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-white text-3xl font-black">@Loc.T("specialist.dashboard.title")</h1>
+                <p class="text-slate-300 mt-1">@specialistName</p>
+            </div>
+            <div class="flex gap-3">
+                <button @onclick='() => Nav.NavigateTo("/quiz-padres")'
+                        class="bg-white/10 text-white font-bold px-4 py-2 rounded-xl text-sm hover:bg-white/20 transition-all">
+                    + @Loc.T("specialist.add_patient")
+                </button>
+                <button @onclick="HandleExportReport" disabled="@_exportingReport"
+                        class="bg-blue-600 text-white font-bold px-4 py-2 rounded-xl text-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    @if (_exportingReport)
+                    {
+                        <span class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></span>
+                    }
+                    @Loc.T("specialist.export_report")
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-6 -mt-10 space-y-6">
+
+        @* ── C1-C5 Data Layer indicator ── *@
+        <div class="bg-white rounded-3xl p-6 shadow-xl">
+            <h2 class="font-black text-slate-700 mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-slate-500">layers</span>
+                @Loc.T("specialist.data_layers")
+            </h2>
+            @if (_loadingAnalysis)
+            {
+                <div class="text-center py-6">
+                    <div class="inline-block w-5 h-5 border-3 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                    <p class="text-slate-500 text-sm mt-2">Cargando análisis...</p>
+                </div>
+            }
+            else if (_analysisError)
+            {
+                <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+                    <p class="font-bold">Error al cargar análisis</p>
+                    <p>@_analysisErrorMsg</p>
+                </div>
+            }
+            else
+            {
+                <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                    @foreach (var layer in DataLayers)
+                    {
+                        <div class="rounded-xl px-4 py-2 text-center @layer.BgClass"
+                             style="min-width:100px;" title="@layer.Sensitivity">
+                            <div class="font-black text-lg @layer.TextClass">@layer.Code</div>
+                            <div class="text-xs font-medium @layer.TextClass opacity-80">@Loc.T(layer.LabelKey)</div>
+                            <div class="mt-1">
+                                <span class="text-xs px-2 py-0.5 rounded-full @layer.BadgeClass font-bold">@layer.Sensitivity</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @* ── Analysis Details (if available) ── *@
+        @if (!_loadingAnalysis && !_analysisError && _deepAnalysis != null)
+        {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-blue-500">smart_toy</span>
+                    @Loc.T("specialist.analysis") AI
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-bold text-slate-700 mb-2">Estilo de Aprendizaje Dominante</h3>
+                        <p class="text-slate-600">@(_deepAnalysis.DominantStyle ?? "—")</p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-700 mb-2">Nivel Sugerido</h3>
+                        <p class="text-slate-600">@_deepAnalysis.SuggestedLevel</p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-700 mb-2">Análisis de AI</h3>
+                        <p class="text-slate-600 text-sm leading-relaxed">@(_deepAnalysis.Reasoning ?? "Sin análisis disponible")</p>
+                    </div>
+                    @if (_deepAnalysis.AveragesByStyle?.Any() == true)
+                    {
+                        <div>
+                            <h3 class="font-bold text-slate-700 mb-2">Rendimiento por Estilo</h3>
+                            <div class="space-y-2">
+                                @foreach (var style in _deepAnalysis.AveragesByStyle)
+                                {
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-slate-600">@(style.LearningStyle ?? "—"): @style.AvgAccuracy.ToString("F1")%</span>
+                                        <span class="text-slate-400 text-xs">@style.GameCount juegos</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── Quick stats ── *@
+        @if (_loadingStats)
+        {
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1rem;">
+                @for (int i = 0; i < 4; i++)
+                {
+                    <div class="bg-white rounded-2xl p-5 shadow-md text-center animate-pulse">
+                        <div class="h-8 w-16 bg-slate-200 rounded mx-auto mb-2"></div>
+                        <div class="h-3 w-24 bg-slate-100 rounded mx-auto"></div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1rem;">
+                <div class="bg-white rounded-2xl p-5 shadow-md text-center">
+                    <div class="text-3xl font-black text-blue-600">@patientCount</div>
+                    <div class="text-slate-500 text-sm font-bold mt-1">@Loc.T("specialist.patients")</div>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-md text-center">
+                    <div class="text-3xl font-black text-green-600">@sessionsThisWeek</div>
+                    <div class="text-slate-500 text-sm font-bold mt-1">Sesiones esta semana</div>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-md text-center">
+                    <div class="text-3xl font-black text-purple-600">@avgProgress<span class="text-xl">%</span></div>
+                    <div class="text-slate-500 text-sm font-bold mt-1">Progreso promedio</div>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-md text-center">
+                    <div class="text-3xl font-black text-orange-500">@reportsGenerated</div>
+                    <div class="text-slate-500 text-sm font-bold mt-1">Evaluaciones completadas</div>
+                </div>
+            </div>
+        }
+
+        @* ── Patient list with alert filters ── *@
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-blue-500">group</span>
+                    @Loc.T("specialist.patients")
+                    @if (_loadingPatients)
+                    {
+                        <span class="ml-2 inline-block w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
+                    }
+                </h2>
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-800">
+                    <input type="checkbox" @onchange="e => _showOnlyAlerts = (bool)(e.Value ?? false)" class="w-4 h-4 rounded cursor-pointer">
+                    Solo con alertas
+                </label>
+            </div>
+
+            @if (!_loadingPatients && patients.Any())
+            {
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-slate-400 uppercase text-xs font-black tracking-wide border-b border-slate-100">
+                                <th class="pb-3 pr-4">Nombre</th>
+                                <th class="pb-3 pr-4">Alertas</th>
+                                <th class="pb-3 pr-4">Estilo</th>
+                                <th class="pb-3 pr-4 text-right">Nivel</th>
+                                <th class="pb-3 pr-4 text-right">Progreso</th>
+                                <th class="pb-3 pr-4 text-center">Tendencia</th>
+                                <th class="pb-3 pr-4">Última sesión</th>
+                                <th class="pb-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            @foreach (var p in GetFilteredPatients())
+                            {
+                                <tr class="hover:bg-slate-100 cursor-pointer transition-all @(_selectedPatient?.ChildProfileId == p.ChildProfileId ? "bg-purple-50 border-l-4 border-l-purple-500" : "")"
+                                    @onclick="() => SelectPatient(p)">
+                                    <td class="py-3 pr-4">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xl">@p.Avatar</span>
+                                            <div>
+                                                <div class="font-bold text-slate-700">@p.Name</div>
+                                                @if (p.AgeYears.HasValue)
+                                                {
+                                                    <div class="text-slate-400 text-xs">@p.AgeYears años</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 pr-4">
+                                        <div class="flex gap-1 flex-wrap max-w-xs">
+                                            @{
+                                                var alerts = GetPatientAlerts(p);
+                                                if (alerts.Count == 0)
+                                                {
+                                                    <span class="text-xs text-green-600 font-bold">🟢 En progreso</span>
+                                                }
+                                                else
+                                                {
+                                                    foreach (var alert in alerts)
+                                                    {
+                                                        <span class="text-xs font-bold px-2 py-1 rounded-full @alert.BgClass">@alert.Emoji @alert.Text</span>
+                                                    }
+                                                }
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="py-3 pr-4">
+                                        <span class="flex items-center gap-1">
+                                            @GetStyleEmoji(p.DominantStyle)
+                                            <span class="text-slate-500 text-xs capitalize">@(p.DominantStyle ?? "—")</span>
+                                        </span>
+                                    </td>
+                                    <td class="py-3 pr-4 text-right font-bold text-slate-700">@p.Level</td>
+                                    <td class="py-3 pr-4 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <div class="w-16 bg-slate-100 rounded-full h-2">
+                                                <div class="h-full rounded-full @GetProgressColor(p.Progress)"
+                                                     style="width:@p.Progress%"></div>
+                                            </div>
+                                            <span class="font-bold text-slate-700 w-8 text-right text-xs">@p.Progress%</span>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 pr-4 text-center">
+                                        @{
+                                            var ti = p.Trend == "improving" ? "trending_up"
+                                                   : p.Trend == "declining" ? "trending_down"
+                                                   : "trending_flat";
+                                            var tc = p.Trend == "improving" ? "text-green-500"
+                                                   : p.Trend == "declining" ? "text-red-400"
+                                                   : "text-yellow-500";
+                                        }
+                                        <span class="material-symbols-outlined @tc" style="font-size:20px">@ti</span>
+                                    </td>
+                                    <td class="py-3 pr-4 text-slate-500 text-xs">@p.LastSession</td>
+                                    <td class="py-3 text-right">
+                                        <button @onclick='() => Nav.NavigateTo($"/progreso?userId={p.ChildUserId}")'
+                                                class="text-blue-600 font-bold text-xs hover:underline">
+                                            Ver perfil →
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (!_loadingPatients)
+            {
+                <div class="text-center py-12 text-slate-400">
+                    <span class="material-symbols-outlined text-5xl block mb-3">person_search</span>
+                    <p class="font-bold">No hay pacientes aún</p>
+                    <p class="text-sm mt-1">Los padres pueden invitarte desde su perfil.</p>
+                </div>
+            }
+        </div>
+
+        @* ── Clinical notes section ── *@
+        <div class="bg-white rounded-3xl p-8 shadow-xl">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-500">clinical_notes</span>
+                    @Loc.T("specialist.clinical_notes")
+                    <span class="ml-2 text-xs bg-purple-100 text-purple-700 font-black px-2 py-1 rounded-full">C5</span>
+                </h2>
+                @if (_selectedPatient != null)
+                {
+                    <button @onclick="() => _showNewSessionForm = !_showNewSessionForm"
+                            class="bg-purple-600 text-white font-bold px-4 py-2 rounded-xl text-sm hover:bg-purple-700 transition-all">
+                        + Nueva Sesión
+                    </button>
+                }
+            </div>
+
+            @if (_selectedPatient == null)
+            {
+                <div class="bg-slate-50 rounded-2xl p-6 text-center text-slate-400">
+                    <span class="material-symbols-outlined text-4xl block mb-2">edit_note</span>
+                    <p class="font-bold">Selecciona un paciente para ver o agregar notas clínicas.</p>
+                    <p class="text-sm mt-1">Las notas C5 solo son visibles para ti y para el tutor si compartes el acceso.</p>
+                </div>
+            }
+            else
+            {
+                @* ── New Session Form (inline, collapsible) ── *@
+                @if (_showNewSessionForm)
+                {
+                    <div class="bg-slate-50 rounded-2xl p-6 mb-6 border-2 border-purple-200">
+                        <h3 class="font-bold text-slate-800 mb-4">Nueva Sesión de Terapia</h3>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-1">Fecha</label>
+                                    <input type="date" value="@_newSessionDate" @onchange="e => _newSessionDate = (string)(e.Value ?? _newSessionDate)"
+                                           class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-purple-500"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-1">Duración (minutos)</label>
+                                    <input type="number" @bind="_newSessionDuration" min="1" max="180"
+                                           class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-purple-500"/>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">Objetivos de la sesión</label>
+                                <textarea @bind="_newSessionObjectives" placeholder="Objetivos de la sesión..."
+                                          class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-purple-500 resize-none"
+                                          rows="2"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">Notas clínicas</label>
+                                <textarea @bind="_newSessionNotes" placeholder="Notas clínicas, observaciones, intervenciones..."
+                                          class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-purple-500 resize-none"
+                                          rows="3"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">Resultados observados</label>
+                                <textarea @bind="_newSessionOutcomes" placeholder="Resultados observados, próximos pasos..."
+                                          class="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-purple-500 resize-none"
+                                          rows="2"></textarea>
+                            </div>
+
+                            <div class="flex gap-3 pt-2">
+                                <button @onclick="SaveNewSession" disabled="@_savingSession"
+                                        class="flex-1 bg-purple-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-purple-700 transition-all disabled:opacity-50">
+                                    @if (_savingSession)
+                                    {
+                                        <span class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                                    }
+                                    Guardar Sesión
+                                </button>
+                                <button @onclick="() => CancelNewSession()"
+                                        class="flex-1 bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-lg hover:bg-slate-300 transition-all">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* ── Success message ── *@
+                @if (_sessionSuccessMessage)
+                {
+                    <div class="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6 text-green-700 text-sm font-bold">
+                        ✓ Sesión guardada correctamente.
+                    </div>
+                }
+
+                @* ── Sessions list ── *@
+                @if (_loadingSessions)
+                {
+                    <div class="text-center py-8">
+                        <div class="inline-block w-5 h-5 border-3 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                        <p class="text-slate-500 text-sm mt-2">Cargando sesiones...</p>
+                    </div>
+                }
+                else if (_therapySessions.Any())
+                {
+                    <div class="space-y-3">
+                        @foreach (var session in _therapySessions)
+                        {
+                            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 hover:border-purple-300 transition-all">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div>
+                                        <div class="font-bold text-slate-800">
+                                            @session.SessionDate.ToString("d/M/yyyy H:mm")
+                                            <span class="text-sm font-normal text-slate-500 ml-2">(@session.DurationMinutes min)</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button @onclick="() => ToggleSessionExpanded(session.Id)"
+                                                class="text-purple-600 text-sm font-bold hover:text-purple-800">
+                                            @if (_expandedSessionIds.Contains(session.Id)) { <span>Ocultar</span> } else { <span>Ver completa</span> }
+                                        </button>
+                                        <button @onclick="() => DeleteSession(session.Id)"
+                                                class="text-red-600 text-sm font-bold hover:text-red-800">
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                @* ── Preview or full view ── *@
+                                @if (_expandedSessionIds.Contains(session.Id))
+                                {
+                                    <div class="space-y-3 text-sm text-slate-700">
+                                        @if (!string.IsNullOrEmpty(session.Objectives))
+                                        {
+                                            <div>
+                                                <div class="font-bold text-slate-800 mb-1">Objetivos:</div>
+                                                <p>@session.Objectives</p>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(session.Notes))
+                                        {
+                                            <div>
+                                                <div class="font-bold text-slate-800 mb-1">Notas clínicas:</div>
+                                                <p>@session.Notes</p>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(session.Outcomes))
+                                        {
+                                            <div>
+                                                <div class="font-bold text-slate-800 mb-1">Resultados:</div>
+                                                <p>@session.Outcomes</p>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    @* ── Preview: first 100 chars ── *@
+                                    <p class="text-slate-600 text-sm">
+                                        @{
+                                            var preview = (session.Notes ?? "Sin notas");
+                                            if (preview.Length > 100)
+                                                preview = preview.Substring(0, 100) + "...";
+                                        }
+                                        @preview
+                                    </p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-8 text-slate-400">
+                        <span class="material-symbols-outlined text-3xl block mb-2">note_add</span>
+                        <p class="font-bold">Sin sesiones registradas aún</p>
+                        <p class="text-sm mt-1">Crea la primera sesión de terapia.</p>
+                    </div>
+                }
+            }
+        </div>
+
+        @* ── Plan de Intervención Individualizada (PII) ── *@
+        @if (_selectedPatient != null)
+        {
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <PiiGoals ChildProfileId="_selectedPatient.ChildProfileId" CanWrite="true" />
+            </div>
+
+            @* ── Clinical Timeline ── *@
+            <div class="bg-white rounded-3xl p-8 shadow-xl">
+                <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-teal-500">timeline</span>
+                    Línea de Tiempo Clínica
+                </h2>
+                @if (_therapySessions.Any())
+                {
+                    <div class="relative">
+                        @* Vertical line *@
+                        <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-200"></div>
+                        <div class="space-y-4 pl-12">
+                            @foreach (var session in _therapySessions.OrderByDescending(s => s.SessionDate))
+                            {
+                                <div class="relative">
+                                    @* Dot on timeline *@
+                                    <div class="absolute -left-9 w-5 h-5 rounded-full bg-purple-500 border-2 border-white shadow-md
+                                                flex items-center justify-center text-white text-[10px] font-black">
+                                        ✓
+                                    </div>
+                                    <div class="bg-purple-50 border border-purple-200 rounded-2xl p-4">
+                                        <div class="flex items-start justify-between gap-2 mb-2">
+                                            <span class="font-black text-slate-800 text-sm">
+                                                @session.SessionDate.ToString("d 'de' MMMM, yyyy")
+                                            </span>
+                                            <span class="text-xs bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full shrink-0">
+                                                @session.DurationMinutes min
+                                            </span>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(session.Objectives))
+                                        {
+                                            <p class="text-xs text-slate-500 font-bold uppercase mb-1">Objetivos</p>
+                                            <p class="text-sm text-slate-700 mb-2">@session.Objectives</p>
+                                        }
+                                        @if (!string.IsNullOrEmpty(session.Outcomes))
+                                        {
+                                            <p class="text-xs text-slate-500 font-bold uppercase mb-1">Resultados</p>
+                                            <p class="text-sm text-slate-700">@session.Outcomes</p>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-8 text-slate-400">
+                        <span class="material-symbols-outlined text-4xl block mb-2">timeline</span>
+                        <p class="font-bold">Sin historial clínico aún</p>
+                        <p class="text-sm">Las sesiones aparecerán aquí en orden cronológico.</p>
+                    </div>
+                }
+            </div>
+        }
+
+    </div>
+</div>
+
+@code {
+    // ── State ────────────────────────────────────────────────────────────────────
+    private string specialistName = "";
+    private bool _loadingPatients = true;
+    private bool _loadingStats    = true;
+    private bool _loadingAnalysis = true;
+    private bool _analysisError   = false;
+    private string _analysisErrorMsg = "";
+    private bool _exportingReport = false;
+
+    // Aggregate stats
+    private int patientCount      = 0;
+    private int sessionsThisWeek  = 0;
+    private int avgProgress       = 0;
+    private int reportsGenerated  = 0;
+
+    // Analysis data
+    private DeepAnalysisResult? _deepAnalysis = null;
+
+    private List<PatientRow> patients = new();
+
+    // ── Clinical notes state ──────────────────────────────────────────────────────
+    private PatientRow? _selectedPatient = null;
+    private bool _showOnlyAlerts = false;
+    private List<TherapySessionDto> _therapySessions = new();
+    private bool _loadingSessions = false;
+    private bool _showNewSessionForm = false;
+    private bool _savingSession = false;
+    private bool _sessionSuccessMessage = false;
+    private HashSet<int> _expandedSessionIds = new();
+
+    // Form fields for new session
+    private string _newSessionDate = DateTime.Today.ToString("yyyy-MM-dd");
+    private int _newSessionDuration = 60;
+    private string _newSessionObjectives = "";
+    private string _newSessionNotes = "";
+    private string _newSessionOutcomes = "";
+
+    // Data for alert calculations (game results cache)
+    private Dictionary<int, List<GameResultRow>> _gameResultsByChild = new();
+
+    // ── Patient row model (merges my-patients + specialist-stats) ────────────────
+    private class PatientRow
+    {
+        public int     AccessId       { get; set; }
+        public int     ChildProfileId { get; set; }
+        public int     ChildUserId    { get; set; }
+        public string  Name           { get; set; } = "";
+        public string  Avatar         { get; set; } = "🦕";
+        public string? DominantStyle  { get; set; }
+        public int     SuggestedLevel { get; set; }
+        public string  ParentName     { get; set; } = "";
+        public string  AccessLevel    { get; set; } = "";
+        public int?    AgeYears       { get; set; }
+        // enriched from specialist-stats
+        public int     Progress       { get; set; } = 0;
+        public string  Trend          { get; set; } = "stable";
+        public string  LastSession    { get; set; } = "-";
+        // aliases
+        public int     Level => SuggestedLevel;
+    }
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────────
+    protected override void OnInitialized()
+        => Loc.OnLocaleChanged += StateHasChanged;
+
+    private async Task LoadAnalysisDataAsync()
+    {
+        try
+        {
+            // Try to load analysis for the first patient if available
+            var patientList = await Http.GetFromJsonAsync<List<PatientRow>>("api/access/my-patients");
+            if (patientList?.Any() == true)
+            {
+                var firstPatient = patientList.FirstOrDefault();
+                if (firstPatient != null)
+                {
+                    _deepAnalysis = await Http.GetFromJsonAsync<DeepAnalysisResult>(
+                        $"api/dashboard/analysis/{firstPatient.ChildUserId}/{Uri.EscapeDataString(firstPatient.Name)}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load analysis data");
+            _analysisError = true;
+            _analysisErrorMsg = "No se pudo cargar el análisis. Por favor, intenta más tarde.";
+        }
+    }
+
+    private async Task HandleExportReport()
+    {
+        _exportingReport = true;
+        try
+        {
+            // Trigger browser print dialog for generating PDF
+            await JS.InvokeVoidAsync("window.print");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to export report");
+        }
+        finally
+        {
+            _exportingReport = false;
+        }
+    }
+
+    // ── Response DTOs (local — mirrors server DTOs) ───────────────────────────────
+    private class SpecialistStatsResponse
+    {
+        public int                    SessionsThisWeek { get; set; }
+        public int                    ReportsGenerated { get; set; }
+        public List<PatientStatItem>  PatientStats     { get; set; } = new();
+    }
+
+    private class PatientStatItem
+    {
+        public int    ChildUserId  { get; set; }
+        public int    Progress     { get; set; }
+        public string Trend        { get; set; } = "stable";
+        public string LastSession  { get; set; } = "-";
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────────
+    private static string GetStyleEmoji(string? s) => s?.ToLower() switch
+    {
+        var x when x?.Contains("audit") == true  => "👂",
+        var x when x?.Contains("kine")  == true  => "✋",
+        var x when x?.Contains("lecto") == true  => "📖",
+        _                                         => "👁️"
+    };
+
+    private static string GetProgressColor(int progress) => progress switch
+    {
+        >= 75 => "bg-gradient-to-r from-green-400 to-green-600",
+        >= 50 => "bg-gradient-to-r from-blue-400 to-blue-600",
+        >= 25 => "bg-gradient-to-r from-yellow-400 to-yellow-600",
+        _     => "bg-gradient-to-r from-red-400 to-red-500"
+    };
+
+    private record DataLayerInfo(string Code, string LabelKey, string Sensitivity,
+                                  string BgClass, string TextClass, string BadgeClass);
+
+    private static readonly DataLayerInfo[] DataLayers =
+    [
+        new("C1", "specialist.c1_basic",          "Medio",    "bg-slate-100", "text-slate-700",  "bg-slate-200 text-slate-600"),
+        new("C2", "specialist.c2_educational",    "Medio",    "bg-blue-50",   "text-blue-700",   "bg-blue-100 text-blue-600"),
+        new("C3", "specialist.c3_behavioral",     "Alto",     "bg-orange-50", "text-orange-700", "bg-orange-100 text-orange-600"),
+        new("C4", "specialist.c4_neurocognitive", "Muy Alto", "bg-purple-50", "text-purple-700", "bg-purple-100 text-purple-600"),
+        new("C5", "specialist.c5_clinical",       "Crítico",  "bg-red-50",    "text-red-700",    "bg-red-100 text-red-600"),
+    ];
+
+    // ── Clinical Notes & Therapy Sessions ────────────────────────────────────────
+    private async Task SelectPatient(PatientRow patient)
+    {
+        _selectedPatient = patient;
+        _showNewSessionForm = false;
+        _expandedSessionIds.Clear();
+        _sessionSuccessMessage = false;
+        ResetNewSessionForm();
+        await LoadTherapySessions();
+    }
+
+    private async Task LoadTherapySessions()
+    {
+        if (_selectedPatient == null) return;
+
+        _loadingSessions = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<TherapySessionDto>>(
+                $"api/therapy/sessions/{_selectedPatient.ChildProfileId}");
+            _therapySessions = response ?? new();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load therapy sessions");
+        }
+        finally
+        {
+            _loadingSessions = false;
+        }
+    }
+
+    private void ToggleSessionExpanded(int sessionId)
+    {
+        if (_expandedSessionIds.Contains(sessionId))
+            _expandedSessionIds.Remove(sessionId);
+        else
+            _expandedSessionIds.Add(sessionId);
+    }
+
+    private async Task SaveNewSession()
+    {
+        if (_selectedPatient == null) return;
+
+        _savingSession = true;
+        _sessionSuccessMessage = false;
+        try
+        {
+            if (!DateTime.TryParse(_newSessionDate, out var sessionDate))
+            {
+                Logger.LogWarning("Invalid session date format");
+                return;
+            }
+
+            var dto = new CreateTherapySessionDto
+            {
+                ChildProfileId = _selectedPatient.ChildProfileId,
+                SessionDate = sessionDate,
+                DurationMinutes = _newSessionDuration,
+                Objectives = _newSessionObjectives,
+                Notes = _newSessionNotes,
+                Outcomes = _newSessionOutcomes
+            };
+
+            var response = await Http.PostAsJsonAsync("api/therapy/sessions", dto);
+            if (response.IsSuccessStatusCode)
+            {
+                _sessionSuccessMessage = true;
+                ResetNewSessionForm();
+                _showNewSessionForm = false;
+                await LoadTherapySessions();
+
+                // Auto-hide success message after 3 seconds
+                await Task.Delay(3000);
+                _sessionSuccessMessage = false;
+            }
+            else
+            {
+                Logger.LogError($"Failed to save session: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving therapy session");
+        }
+        finally
+        {
+            _savingSession = false;
+        }
+    }
+
+    private async Task DeleteSession(int sessionId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "¿Estás seguro de que deseas eliminar esta sesión?"))
+            return;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"api/therapy/sessions/{sessionId}");
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadTherapySessions();
+            }
+            else
+            {
+                Logger.LogError($"Failed to delete session: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting therapy session");
+        }
+    }
+
+    private void CancelNewSession()
+    {
+        ResetNewSessionForm();
+        _showNewSessionForm = false;
+        _sessionSuccessMessage = false;
+    }
+
+    private void ResetNewSessionForm()
+    {
+        _newSessionDate = DateTime.Today.ToString("yyyy-MM-dd");
+        _newSessionDuration = 60;
+        _newSessionObjectives = "";
+        _newSessionNotes = "";
+        _newSessionOutcomes = "";
+    }
+
+    // ── Alert System & Filtering ───────────────────────────────────────────────────
+    private List<PatientRow> GetFilteredPatients()
+    {
+        if (!_showOnlyAlerts) return patients;
+        return patients.Where(p => GetPatientAlerts(p).Count > 0).ToList();
+    }
+
+    private List<AlertBadge> GetPatientAlerts(PatientRow patient)
+    {
+        var alerts = new List<AlertBadge>();
+
+        // Calculate alerts based on game results history
+        // For now, we check: no activity 7+ days, regresion detected
+
+        // 1. Check if no activity in last 7 days (this would require GameResults data loaded)
+        // Placeholder: would need to load game results per patient
+        // For demo, we'll check the LastSession text
+        if (patient.LastSession.Contains("más de"))
+        {
+            alerts.Add(new AlertBadge
+            {
+                Emoji = "🔴",
+                Text = "Sin actividad 7+ días",
+                BgClass = "bg-red-100 text-red-700"
+            });
+        }
+
+        // 2. Check for regression (trend == "declining")
+        if (patient.Trend == "declining")
+        {
+            alerts.Add(new AlertBadge
+            {
+                Emoji = "🟡",
+                Text = "Regresión detectada",
+                BgClass = "bg-yellow-100 text-yellow-700"
+            });
+        }
+
+        // 3. No data yet
+        if (patient.Progress == 0 && patient.LastSession == "-")
+        {
+            alerts.Add(new AlertBadge
+            {
+                Emoji = "⚪",
+                Text = "Sin datos",
+                BgClass = "bg-slate-100 text-slate-700"
+            });
+        }
+
+        return alerts;
+    }
+
+    private class AlertBadge
+    {
+        public string Emoji { get; set; } = "";
+        public string Text { get; set; } = "";
+        public string BgClass { get; set; } = "";
+    }
+
+    private class GameResultRow
+    {
+        public int Id { get; set; }
+        public DateTime PlayedAt { get; set; }
+        public double? Accuracy { get; set; }
+        public string LearningStyle { get; set; } = "";
+    }
+
+    // ── Enhanced initialization to load therapy sessions when patient selected ──
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            specialistName = auth.User.FindFirst(ClaimTypes.Name)?.Value ?? "Especialista";
+
+            // Run all calls in parallel for speed
+            var patientsTask = Http.GetFromJsonAsync<List<PatientRow>>("api/access/my-patients");
+            var statsTask    = Http.GetFromJsonAsync<SpecialistStatsResponse>("api/access/specialist-stats");
+            var analysisTask = LoadAnalysisDataAsync();
+
+            await Task.WhenAll(patientsTask, statsTask, analysisTask);
+
+            var patientList = patientsTask.Result ?? new();
+            var stats       = statsTask.Result;
+
+            // Merge per-patient enrichment
+            if (stats?.PatientStats != null)
+            {
+                var statMap = stats.PatientStats.ToDictionary(s => s.ChildUserId);
+                foreach (var p in patientList)
+                {
+                    if (statMap.TryGetValue(p.ChildUserId, out var s))
+                    {
+                        p.Progress    = s.Progress;
+                        p.Trend       = s.Trend;
+                        p.LastSession = s.LastSession;
+                    }
+                }
+            }
+
+            patients         = patientList;
+            patientCount     = patientList.Count;
+            sessionsThisWeek = stats?.SessionsThisWeek ?? 0;
+            reportsGenerated = stats?.ReportsGenerated ?? 0;
+            avgProgress      = patientList.Any() ? (int)patientList.Average(p => p.Progress) : 0;
+
+            // Auto-select first patient if available
+            if (patients.Any())
+            {
+                await SelectPatient(patients.First());
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load specialist dashboard data");
+        }
+        finally
+        {
+            _loadingPatients = false;
+            _loadingStats    = false;
+            _loadingAnalysis = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose() => Loc.OnLocaleChanged -= StateHasChanged;
+}

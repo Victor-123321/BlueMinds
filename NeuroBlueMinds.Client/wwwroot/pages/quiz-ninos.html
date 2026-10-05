@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz para Niños - BlueMinds</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="../css/quiz-ninos.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <div id="quiz-container" class="container">
+      <div class="card">
+        <div class="progress-bar-bg">
+          <div id="progress-bar" class="progress-bar-fill" style="width:0%">
+            <span id="progress-text">0%</span>
+          </div>
+        </div>
+        <h2 id="question-title" class="question-title"></h2>
+        <p id="question-subtitle" class="question-subtitle"></p>
+        <div id="question-content"></div>
+        <button id="verify-button" class="action-button" onclick="checkAnswer()" disabled>VERIFICAR RESPUESTA</button>
+        <div id="feedback"></div>
+      </div>
+    </div>
+
+    <div id="results-container" class="hidden">
+      <div class="card results-container">
+        <div class="trophy-icon">
+          <i class="fas fa-trophy" style="font-size:4rem;color:white;"></i>
+        </div>
+        <h2 class="results-title">¡Excelente Trabajo! 🎉</h2>
+        <p style="font-size:1.125rem;color:var(--gray-600);margin-bottom:2rem;">Has completado todas las preguntas</p>
+        <div class="results-stats">
+          <div class="stat-box">
+            <div class="stat-number" id="total-questions">20</div>
+            <div class="stat-label">Preguntas</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number" id="correct-answers">0</div>
+            <div class="stat-label">Correctas</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number" id="completion-time">0m</div>
+            <div class="stat-label">Tiempo</div>
+          </div>
+        </div>
+        <div style="background:var(--gray-50);padding:1.5rem;border-radius:1rem;margin-top:2rem;">
+          <h3 style="color:var(--gray-800);margin-bottom:1rem;">📊 Análisis de Aprendizaje</h3>
+          <div id="learning-analysis" style="text-align:left;color:var(--gray-700);"></div>
+        </div>
+        <div style="display:flex;gap:1rem;margin-top:2rem;">
+          <button onclick="location.reload()" class="action-button" style="flex:1;">Volver a Empezar</button>
+          <button onclick="goToDashboard()" class="action-button"
+            style="flex:1;background:linear-gradient(135deg,var(--blue-500),var(--blue-600));">Ir al Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../api.js"></script>
+  <script>
+
+    let isProcessing = false;
+    let currentQuestionType = '';
+    let draggedValue = null;
+    let currentQuestionIndex = 0;
+    let answers = [];
+    let selectedAnswer = null;
+    let showFeedback = false;
+    let score = 0;
+    let startTime = Date.now();
+    let currentAudio = null;
+    let questionStartTime = Date.now();
+    let currentSessionId = 0; // ← updated from server on first save
+    const verifyBtn = document.getElementById('verify-button');
+    let sequenceAnswer = [];
+    let wordOrderAnswer = [];
+    let pairAnswers = [];
+
+    // ── Questions ─────────────────────────────────────────────────────────────
+    const questions = [
+      {type: 'sequence', nivel: 1, learningStyle: 'visual', question: 'Ordena la secuencia correcta', subtitle: 'Arrastra los emojis en el orden correcto', sequence: ['👤', '🍽️', '🍎'], options: ['🍎', '👤', '🍽️'], correct: ['👤', '🍽️', '🍎']},
+      {type: 'complete-sequence', nivel: 1, learningStyle: 'visual', question: '¿Qué imagen falta?', subtitle: 'Selecciona la imagen que completa la secuencia', sequence: ['🚶', '🏫', '?', '🪑'], options: [{emoji: '🚗', value: 'carro'}, {emoji: '🎒', value: 'mochila'}, {emoji: '📚', value: 'libros'}], correct: 'libros'},
+      {type: 'image-to-word', nivel: 2, learningStyle: 'visual', question: 'Selecciona la palabra correcta', subtitle: 'Mira la imagen y elige la palabra', image: '🌸', options: ['Flor', 'Helado', 'Vaca'], correct: 'Flor'},
+      {type: 'word-to-image', nivel: 3, learningStyle: 'visual', question: '¿La imagen corresponde a la palabra?', subtitle: 'Verifica si cada imagen es correcta', pairs: [{word: 'Vaca', image: '🐮', correct: true}, {word: 'Manzana', image: '🍎', correct: true}, {word: 'Escuela', image: '🏫', correct: true}], currentPair: 0},
+      {type: 'sound-complete', nivel: 1, learningStyle: 'auditivo', question: 'Escucha y completa', subtitle: 'Elige la imagen correcta', audioText: 'Yo como manza', soundFile: null, options: [{emoji: '🍎', label: 'Manzana', value: 'manzana'}, {emoji: '🐱', label: 'Gato', value: 'gato'}, {emoji: '🏠', label: 'Casa', value: 'casa'}], correct: 'manzana'},
+      {type: 'order-words', nivel: 2, learningStyle: 'auditivo', question: 'Ordena las palabras', subtitle: 'Escucha y ordena para formar la oración', audioText: 'Papá come manzana', soundFile: null, words: ['Manzana', 'come', 'Papá'], correct: ['Papá', 'come', 'Manzana']},
+      {type: 'sound', nivel: 1, learningStyle: 'auditivo', question: 'Escucha y selecciona el animal', subtitle: 'Presiona el botón para escuchar', soundFile: '../sonidos/vaca.mp3', options: [{animal: 'Vaca', emoji: '🐮', value: 'vaca'}, {animal: 'Cerdo', emoji: '🐷', value: 'cerdo'}, {animal: 'Pollo', emoji: '🐔', value: 'pollo'}], correct: 'vaca'},
+      {type: 'sound', nivel: 2, learningStyle: 'auditivo', question: 'Escucha y selecciona el animal', subtitle: 'Presiona el botón para escuchar', soundFile: '../sonidos/perro.mp3', options: [{animal: 'Perro', emoji: '🐕', value: 'perro'}, {animal: 'Gato', emoji: '🐈', value: 'gato'}, {animal: 'Pájaro', emoji: '🐦', value: 'pajaro'}], correct: 'perro'},
+      {type: 'sound', nivel: 3, learningStyle: 'auditivo', question: 'Escucha y selecciona el animal', subtitle: 'Presiona el botón para escuchar', soundFile: '../sonidos/gato.mp3', options: [{animal: 'León', emoji: '🦁', value: 'leon'}, {animal: 'Gato', emoji: '🐈', value: 'gato'}, {animal: 'Tigre', emoji: '🐯', value: 'tigre'}], correct: 'gato'},
+      {type: 'drag-sequence', nivel: 1, learningStyle: 'kinestesico', question: 'Arrastra y ordena', subtitle: 'Toca y arrastra cada emoji al lugar correcto', sequence: ['🌅', '☀️', '🌙'], options: ['🌙', '☀️', '🌅'], correct: ['🌅', '☀️', '🌙']},
+      {type: 'image-to-word', nivel: 2, learningStyle: 'kinestesico', question: 'Toca la respuesta correcta', subtitle: 'Mira y selecciona la palabra', image: '🚗', options: ['Carro', 'Casa', 'Comida'], correct: 'Carro'},
+      {type: 'complete-sequence', nivel: 2, learningStyle: 'kinestesico', question: 'Completa tocando', subtitle: 'Toca la imagen correcta', sequence: ['🍞', '🧈', '?', '🍴'], options: [{emoji: '🥛', value: 'leche'}, {emoji: '🔪', value: 'cuchillo'}, {emoji: '🧂', value: 'sal'}], correct: 'cuchillo'},
+      {type: 'word-to-image', nivel: 3, learningStyle: 'kinestesico', question: 'Verifica tocando', subtitle: '¿La imagen es correcta?', pairs: [{word: 'Pelota', image: '⚽', correct: true}, {word: 'Libro', image: '📚', correct: true}], currentPair: 0},
+      {type: 'drag-sequence', nivel: 3, learningStyle: 'kinestesico', question: 'Organiza arrastrando', subtitle: 'Del más pequeño al más grande', sequence: ['🐜', '🐕', '🐘'], options: ['🐘', '🐜', '🐕'], correct: ['🐜', '🐕', '🐘']},
+      {type: 'image-to-word', nivel: 1, learningStyle: 'lectoescritura', question: 'Lee y selecciona', subtitle: 'Mira la imagen y elige la palabra escrita', image: '☀️', options: ['Sol', 'Luna', 'Estrella'], correct: 'Sol'},
+      {type: 'order-words', nivel: 2, learningStyle: 'lectoescritura', question: 'Ordena la oración', subtitle: 'Toca las palabras en orden', audioText: 'El gato come pescado', soundFile: null, words: ['pescado', 'gato', 'come', 'El'], correct: ['El', 'gato', 'come', 'pescado']},
+      {type: 'image-to-word', nivel: 2, learningStyle: 'lectoescritura', question: 'Lee la palabra', subtitle: 'Selecciona la palabra que corresponde', image: '🌳', options: ['Árbol', 'Flor', 'Pasto'], correct: 'Árbol'},
+      {type: 'complete-sequence', nivel: 3, learningStyle: 'lectoescritura', question: 'Completa la secuencia', subtitle: 'Lee y selecciona', sequence: ['📖', '✏️', '?', '🎓'], options: [{emoji: '📝', value: 'escribir'}, {emoji: '🎮', value: 'jugar'}, {emoji: '🍕', value: 'comer'}], correct: 'escribir'},
+      {type: 'word-to-image', nivel: 3, learningStyle: 'lectoescritura', question: 'Verifica la palabra', subtitle: '¿La imagen corresponde?', pairs: [{word: 'Mariposa', image: '🦋', correct: true}, {word: 'Nube', image: '☁️', correct: true}], currentPair: 0},
+      {type: 'order-words', nivel: 3, learningStyle: 'lectoescritura', question: 'Forma la oración', subtitle: 'Ordena las palabras correctamente', audioText: 'María juega en el parque', soundFile: null, words: ['juega', 'parque', 'el', 'en', 'María'], correct: ['María', 'juega', 'en', 'el', 'parque']}
+    ];
+
+    // ── Progress loading (polls for Blazor to inject childQuizProgress) ──────────
+    function waitForProgress(maxWaitMs = 4000, intervalMs = 200) {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        (function check() {
+          const p = window.parent?.childQuizProgress ?? window.childQuizProgress ?? null;
+          if (p) {resolve(p); return;}
+          if (Date.now() - start >= maxWaitMs) {resolve({progress: null}); return;}
+          setTimeout(check, intervalMs);
+        })();
+      });
+    }
+
+    async function loadQuizProgress() {
+      try {
+        const data = await waitForProgress();
+        if (data?.progress?.id) {
+          currentSessionId = data.progress.id;
+          const nextQ = data.progress.current_question_index ?? 0;
+          if (!data.progress.is_completed && nextQ > 0) {
+            currentQuestionIndex = Math.min(nextQ, questions.length - 1);
+            for (let i = 0; i < currentQuestionIndex; i++) {if (!answers[i]) answers[i] = {questionIndex: i, resumed: true};}
+            alert(`¡Bienvenido de nuevo! Continuamos desde la pregunta ${currentQuestionIndex + 1}`);
+          }
+        }
+      } catch (err) {
+        console.error('[quiz-ninos] Error cargando progreso:', err);
+      } render();
+    } // ── Audio
+    function playSound() {
+      const
+        cur = questions[currentQuestionIndex]; if (cur.soundFile) {
+          if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+          } currentAudio = new Audio(cur.soundFile); currentAudio.play().catch(e =>
+            console.log('Audio error:', e));
+        } else if (cur.audioText) {
+          const u = new SpeechSynthesisUtterance(cur.audioText);
+          u.lang = 'es-ES'; u.rate = 0.9;
+          speechSynthesis.speak(u);
+        }
+    }
+
+    // ── Answer handlers ───────────────────────────────────────────────────────────
+    function handleSelection(value) {selectedAnswer = value; verifyBtn.disabled = false; render();}
+
+    function handleWordClick(word) {
+      const idx = wordOrderAnswer.indexOf(word);
+      if (idx > -1) wordOrderAnswer.splice(idx, 1);
+      else if (wordOrderAnswer.length < questions[currentQuestionIndex].correct.length) wordOrderAnswer.push(word);
+      updateVerifyButtonState(); render();
+    } function handlePairAnswer(answer) {
+      const
+        cur = questions[currentQuestionIndex]; pairAnswers.push(answer); showFeedback = true;
+      document.getElementById('feedback').innerHTML = ` <div class="feedback-box ${answer ? 'correct' : 'incorrect'}">
+      <i class="fas fa-${answer ? 'check-circle' : 'times-circle'}"
+        style="font-size:2rem;color:${answer ? 'var(--green-600)' : 'var(--red-500)'}"></i>
+      <div style="margin-left:1rem;"><strong>${answer ? '¡Correcto!' : 'Incorrecto'}</strong></div>
+      </div>`;
+      if (pairAnswers.length < cur.pairs.length) {cur.currentPair++; render();} else {
+        selectedAnswer = pairAnswers.every(a => a === true);
+        verifyBtn.disabled = false;
+        if (currentQuestionIndex === questions.length - 1) {
+          verifyBtn.textContent = 'TERMINAR QUIZ'; verifyBtn.onclick = completeGame;
+        } else {
+          verifyBtn.textContent = 'SIGUIENTE PREGUNTA'; verifyBtn.onclick = nextQuestion;
+        }
+      }
+    }
+
+    // ── Check answer ──────────────────────────────────────────────────────────────
+    async function checkAnswer() {
+      if (isProcessing) return;
+      isProcessing = true;
+      verifyBtn.disabled = true;
+
+      const cur = questions[currentQuestionIndex];
+      const responseTimeMs = Date.now() - questionStartTime;
+      let isCorrect = false;
+
+      if (['sequence', 'drag-sequence', 'complete-sequence'].includes(cur.type)) {
+        const ua = cur.type === 'complete-sequence' ? sequenceAnswer[0] : sequenceAnswer;
+        isCorrect = JSON.stringify(ua) === JSON.stringify(cur.correct);
+      } else if (cur.type === 'order-words') {
+        isCorrect = JSON.stringify(wordOrderAnswer) === JSON.stringify(cur.correct);
+      } else if (cur.type === 'word-to-image') {
+        isCorrect = pairAnswers.every(a => a === true);
+      } else {
+        isCorrect = selectedAnswer === cur.correct || selectedAnswer === true;
+      }
+
+      if (isCorrect) score++;
+
+      const answerValue = selectedAnswer ?? [...(sequenceAnswer.length ? sequenceAnswer : wordOrderAnswer.length ?
+        wordOrderAnswer : pairAnswers)];
+      answers[currentQuestionIndex] = {
+        questionIndex: currentQuestionIndex,
+        nivel: cur.nivel, learningStyle: cur.learningStyle,
+        correct: isCorrect, answer: answerValue, responseTimeMs
+      };
+
+      // ── Save via bridge; get back sessionId ──────────────────────────────────
+      try {
+        const result = await api.saveChildQuizResponse(
+          currentSessionId,
+          currentQuestionIndex, cur.type, cur.learningStyle, cur.nivel,
+          answerValue, isCorrect, responseTimeMs
+        );
+        // Update currentSessionId from the first response onwards
+        if (result?.sessionId && result.sessionId !== 0) {
+          currentSessionId = result.sessionId;
+          console.log('[quiz-ninos] sessionId confirmed:', currentSessionId);
+        }
+      } catch (e) {
+        console.error('[quiz-ninos] saveChildQuizResponse error:', e);
+      }
+
+      // ── Feedback ──────────────────────────────────────────────────────────────
+      document.getElementById('feedback').innerHTML = `
+        <div class="feedback-box ${isCorrect ? 'correct' : 'incorrect'}">
+          <i class="fas fa-${isCorrect ? 'check-circle' : 'times-circle'}"
+            style="font-size:2rem;color:${isCorrect ? 'var(--green-600)' : 'var(--red-500)'}"></i>
+          <div>
+            <div style="font-weight:700;font-size:1.25rem;margin-bottom:0.5rem;">
+              ${isCorrect ? '¡Muy bien! ✨' : 'Respuesta registrada 📝'}
+            </div>
+            <div style="color:var(--gray-600);">
+              ${isCorrect ? 'Excelente trabajo, sigamos adelante' : 'Continuamos con la siguiente pregunta'}
+            </div>
+          </div>
+        </div>`;
+
+      if (isCorrect) confetti({
+        particleCount: 100, spread: 70, origin: {y: 0.6}, colors: ['#3b82f6', '#60a5fa', '#93c5fd']
+      });
+
+      if (currentQuestionIndex === questions.length - 1) {
+        setTimeout(() => completeGame(), 1500);
+      } else {
+        verifyBtn.textContent = 'SIGUIENTE PREGUNTA';
+        verifyBtn.onclick = nextQuestion;
+        verifyBtn.disabled = false;
+      }
+      setTimeout(() => {
+        isProcessing = false;
+        if (currentQuestionIndex !== questions.length - 1) verifyBtn.disabled = false;
+      }, 1500);
+    }
+
+    // ── Next question ─────────────────────────────────────────────────────────────
+    function nextQuestion() {
+      if (currentQuestionIndex >= questions.length - 1) return;
+      currentQuestionIndex++;
+      const cur = questions[currentQuestionIndex];
+      selectedAnswer = null; pairAnswers = []; showFeedback = false;
+
+      if (['sequence', 'drag-sequence', 'complete-sequence'].includes(cur.type)) {
+        const slots = Array.isArray(cur.correct) ? cur.correct.length : 1;
+        sequenceAnswer = new Array(slots).fill(null);
+      } else if (cur.type === 'order-words') {
+        wordOrderAnswer = new Array(cur.correct.length).fill(null);
+      }
+      if (cur.type === 'word-to-image') cur.currentPair = 0;
+
+      document.getElementById('feedback').innerHTML = '';
+      verifyBtn.textContent = 'VERIFICAR RESPUESTA';
+      verifyBtn.onclick = checkAnswer;
+      verifyBtn.disabled = true;
+      questionStartTime = Date.now();
+      render();
+    }
+
+    // ── Complete game ─────────────────────────────────────────────────────────────
+    async function completeGame() {
+      const totalTimeSeconds = Math.round((Date.now() - startTime) / 1000);
+      const timeInMinutes = Math.round(totalTimeSeconds / 60);
+      const styleNames = {
+        visual: '👁️ Visual', auditivo: '👂 Auditivo',
+        kinestesico: '✋ Kinestésico', lectoescritura: '📖 Lectoescritura', 'No detectado': 'No detectado'
+      };
+      try {
+        const data = await api.completeChildQuiz(answers, totalTimeSeconds);
+        const finalScore = data.score ?? score;
+        const bestStyle = data.bestStyle ?? 'No detectado';
+        const suggestedLevel = data.suggestedLevel ?? 1;
+        const recs = data.recommendations ?? [];
+        const learningStats = data.learningStats ?? {};
+
+        document.getElementById('quiz-container').classList.add('hidden');
+        document.getElementById('results-container').classList.remove('hidden');
+        document.getElementById('correct-answers').textContent = finalScore;
+        document.getElementById('completion-time').textContent = timeInMinutes + 'm';
+
+        const n = (obj) => obj
+          ? {correct: obj.correct ?? obj.Correct ?? 0, total: obj.total ?? obj.Total ?? 0}
+          : {correct: 0, total: 0};
+        const statsMap = {
+          visual: n(learningStats.visual ?? learningStats.Visual),
+          auditivo: n(learningStats.auditivo ?? learningStats.Auditivo),
+          kinestesico: n(learningStats.kinestesico ?? learningStats.Kinestesico),
+          lectoescritura: n(learningStats.lectoescritura ?? learningStats.Lectoescritura)
+        };
+
+        let html = `
+        <p style="margin-bottom:1rem;"><strong>🎯 Estilo predominante:</strong> ${styleNames[bestStyle] || bestStyle}</p>
+        <p style="margin-bottom:1rem;"><strong>📊 Nivel sugerido:</strong> Nivel ${suggestedLevel}</p>
+        <div style="margin-top:1rem;padding-top:1rem;border-top:2px solid var(--gray-300);">
+          <p style="font-weight:600;margin-bottom:0.5rem;">Desglose por estilo:</p>`;
+        for (const [s, st] of Object.entries(statsMap)) {
+          const pct = st.total > 0 ? Math.round(st.correct / st.total * 100) : 0;
+          html += `<div style="margin-bottom:0.5rem;">${styleNames[s] || s}: ${st.correct}/${st.total} (${pct}%)</div>`;
+        }
+        html += `
+        </div>`;
+        if (recs.length)
+          html += `<div style="margin-top:1.5rem;"><strong>Recomendaciones:</strong><br>${recs.map(r => `•
+          ${r}<br>`).join('')}</div>`;
+
+        document.getElementById('learning-analysis').innerHTML = html;
+        if (finalScore >= 15) confetti({particleCount: 150, spread: 90, origin: {y: 0.6}});
+
+        localStorage.setItem('blueminds_test_completed', 'true');
+        localStorage.setItem('blueminds_user_type', 'child');
+        localStorage.setItem('blueminds_learning_style', bestStyle);
+        localStorage.setItem('blueminds_suggested_level', String(suggestedLevel));
+        localStorage.setItem('blueminds_score', String(finalScore));
+      } catch (err) {
+        console.error('[quiz-ninos] completeGame error:', err);
+        showLocalResults(timeInMinutes, styleNames);
+      }
+    }
+
+    function showLocalResults(timeInMinutes, styleNames) {
+      const ls = {visual: {c: 0, t: 0}, auditivo: {c: 0, t: 0}, kinestesico: {c: 0, t: 0}, lectoescritura: {c: 0, t: 0}};
+      answers.forEach(a => {
+        if (a?.learningStyle && ls[a.learningStyle]) {
+          ls[a.learningStyle].t++;
+          if (a.correct) ls[a.learningStyle].c++;
+        }
+      });
+      let best = 'No detectado', bestPct = 0;
+      for (const [s, v] of Object.entries(ls)) {
+        const pct = v.t > 0 ? v.c / v.t : 0;
+        if (pct > bestPct) {bestPct = pct; best = s;}
+      }
+      document.getElementById('quiz-container').classList.add('hidden');
+      document.getElementById('results-container').classList.remove('hidden');
+      document.getElementById('correct-answers').textContent = score;
+      document.getElementById('completion-time').textContent = timeInMinutes + 'm';
+      let html = `<p><strong>🎯 Estilo predominante (local):</strong> ${styleNames[best] || best}</p>`;
+      for (const [s, v] of Object.entries(ls))
+        html += `<div>${styleNames[s] || s}: ${v.c}/${v.t}</div>`;
+      html += `<p style="color:orange;margin-top:1rem;">(Análisis local – sin conexión al servidor)</p>`;
+      document.getElementById('learning-analysis').innerHTML = html;
+    }
+
+    function goToDashboard() {window.parent.location.href = '/dashboard';}
+
+    // ── Render ────────────────────────────────────────────────────────────────────
+    function render() {
+      if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.length) currentQuestionIndex = 0;
+      const cur = questions[currentQuestionIndex];
+      const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+      currentQuestionType = cur.type;
+
+      document.getElementById('progress-bar').style.width = progress + '%';
+      document.getElementById('progress-text').textContent = Math.round(progress) + '%';
+      document.getElementById('question-title').textContent = cur.question;
+      document.getElementById('question-subtitle').textContent = `${cur.subtitle} (${currentQuestionIndex +
+        1}/${questions.length})`;
+
+      const contentEl = document.getElementById('question-content');
+      contentEl.innerHTML = '';
+
+      if (cur.type === 'sound' || cur.type === 'sound-complete') {
+        contentEl.innerHTML = `
+          <button onclick="playSound()" class="sound-play-button">
+            <i class="fas fa-volume-up" style="font-size:3rem;color:white;"></i>
+          </button>
+          <div class="animal-options-container">
+            ${cur.options.map(o => `
+            <div onclick="handleSelection('${o.value}')"
+              class="animal-option ${selectedAnswer === o.value ? 'selected' : ''}">
+              <span class="animal-emoji">${o.emoji}</span>
+              <span class="animal-name">${o.label || o.animal}</span>
+            </div>`).join('')}
+          </div>`;
+      } else if (cur.type === 'sequence' || cur.type === 'drag-sequence') {
+        contentEl.innerHTML = `
+          <div class="sequence-slots">
+            ${Array(cur.correct.length).fill().map((_, i) => {
+          const v = sequenceAnswer[i];
+          return v
+            ? `<div class="sequence-box filled">${v}<button class="remove-slot-btn" data-slot-index="${i}">×</button>
+            </div>`
+            : `<div class="sequence-box drop-zone" data-slot-index="${i}"></div>`;
+        }).join('')}
+          </div>
+          <div class="options-pool">
+            ${cur.options.filter(o => !sequenceAnswer.includes(o)).map(o =>
+          `<div class="draggable-item" data-value="${o}">${o}</div>`).join('')}
+          </div>`;
+      } else if (cur.type === 'complete-sequence') {
+        const om = {}; cur.options.forEach(o => om[o.value] = o.emoji);
+        let si = 0;
+        const seqHtml = cur.sequence.map(item => {
+          if (item !== '?') return `<div class="sequence-box fixed">${item}</div>`;
+          const idx = si++; const v = sequenceAnswer[idx];
+          return v
+            ? `<div class="sequence-box filled">${om[v] || v}<button class="remove-slot-btn"
+              data-slot-index="${idx}">×</button></div>`
+            : `<div class="sequence-box drop-zone" data-slot-index="${idx}"></div>`;
+        }).join('');
+        contentEl.innerHTML = `
+          <div class="sequence-slots">${seqHtml}</div>
+          <div class="options-pool">
+            ${cur.options.filter(o => !sequenceAnswer.includes(o.value)).map(o =>
+          `<div class="draggable-item" data-value="${o.value}">${o.emoji}</div>`).join('')}
+          </div>`;
+      } else if (cur.type === 'image-to-word') {
+        contentEl.innerHTML = `
+          <div style="text-align:center;margin:2rem 0;">
+            <div style="font-size:8rem;margin-bottom:2rem;">${cur.image}</div>
+          </div>
+          <div class="image-options-container">
+            ${cur.options.map(w => `
+            <div onclick="handleSelection('${w}')" class="image-option ${selectedAnswer === w ? 'selected' : ''}">
+              <span class="image-label">${w}</span>
+            </div>`).join('')}
+          </div>`;
+      } else if (cur.type === 'word-to-image') {
+        const pair = cur.pairs[cur.currentPair];
+        contentEl.innerHTML = `
+          <div style="text-align:center;margin:2rem 0;">
+            <div style="font-size:2rem;font-weight:700;margin-bottom:2rem;color:var(--gray-800);">${pair.word}</div>
+            <div style="font-size:8rem;margin-bottom:2rem;">${pair.image}</div>
+            <p style="color:var(--gray-600);margin-bottom:2rem;">¿Es correcto?</p>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <button onclick="handlePairAnswer(true)" class="action-button"
+              style="background:linear-gradient(135deg,var(--green-500),var(--green-600));margin:0;">✓ SÍ</button>
+            <button onclick="handlePairAnswer(false)" class="action-button"
+              style="background:linear-gradient(135deg,var(--red-500),#dc2626);margin:0;">✗ NO</button>
+          </div>`;
+      } else if (cur.type === 'order-words') {
+        if (cur.audioText) contentEl.innerHTML =
+          `<button onclick="playSound()" class="sound-play-button"><i class="fas fa-volume-up"
+              style="font-size:3rem;"></i></button>`;
+        contentEl.innerHTML += `
+          <div class="word-order-slots">
+            ${Array(cur.correct.length).fill().map((_, i) => {
+          const v = wordOrderAnswer[i];
+          return v
+            ? `<div class="word-slot filled">${v}<button class="remove-slot-btn" data-slot-index="${i}">×</button></div>
+            `
+            : `<div class="word-slot drop-zone" data-slot-index="${i}"></div>`;
+        }).join('')}
+          </div>
+          <div class="word-options-pool">
+            ${cur.words.filter(w => !wordOrderAnswer.includes(w)).map(w =>
+          `<div class="draggable-item" data-value="${w}">${w}</div>`).join('')}
+          </div>`;
+      }
+
+      attachDragAndDropListeners();
+      updateVerifyButtonState();
+    }
+
+    function updateVerifyButtonState() {
+      const cur = questions[currentQuestionIndex];
+      let ok = false;
+      if (['sequence', 'drag-sequence', 'complete-sequence'].includes(cur.type))
+        ok = sequenceAnswer.every(v => v !== null);
+      else if (cur.type === 'order-words') ok = wordOrderAnswer.every(v => v !== null);
+      else if (cur.type === 'word-to-image') ok = pairAnswers.length === cur.pairs.length;
+      else ok = selectedAnswer !== null;
+      verifyBtn.disabled = !ok;
+    }
+
+    function attachDragAndDropListeners() {
+      const content = document.getElementById('question-content');
+      if (!content) return;
+      content.querySelectorAll('.draggable-item').forEach(item => {
+        item.draggable = true;
+        item.ondragstart = e => {draggedValue = e.target.dataset.value; e.target.classList.add('dragging');};
+        item.ondragend = e => e.target.classList.remove('dragging');
+      });
+      content.querySelectorAll('.drop-zone').forEach(zone => {
+        zone.ondragover = e => {e.preventDefault(); zone.classList.add('drag-over');};
+        zone.ondragleave = () => zone.classList.remove('drag-over');
+        zone.ondrop = e => {
+          e.preventDefault(); zone.classList.remove('drag-over');
+          if (!draggedValue) return;
+          const idx = parseInt(zone.dataset.slotIndex);
+          if (['sequence', 'drag-sequence', 'complete-sequence'].includes(currentQuestionType))
+            sequenceAnswer[idx] = draggedValue;
+          else if (currentQuestionType === 'order-words')
+            wordOrderAnswer[idx] = draggedValue;
+          draggedValue = null; updateVerifyButtonState(); render();
+        };
+      });
+      content.querySelectorAll('.remove-slot-btn').forEach(btn => {
+        btn.onclick = e => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.slotIndex);
+          if (['sequence', 'drag-sequence', 'complete-sequence'].includes(currentQuestionType))
+            sequenceAnswer[idx] = null;
+          else if (currentQuestionType === 'order-words')
+            wordOrderAnswer[idx] = null;
+          updateVerifyButtonState(); render();
+        };
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadQuizProgress();
+    });
+  </script>
+</body>
+
+</html>

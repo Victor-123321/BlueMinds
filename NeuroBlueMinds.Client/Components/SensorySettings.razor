@@ -1,0 +1,156 @@
+@* Floating accessibility panel — neuro-adaptive themes, dyslexic font, motion toggle *@
+@inject IJSRuntime JS
+@inject ILogger<SensorySettings> Logger
+
+<div class="fixed bottom-4 right-4 z-50">
+
+    @if (_open)
+    {
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 p-5 w-72 space-y-5 mb-2">
+            <h3 class="font-black text-slate-800 text-base">⚙️ Accesibilidad</h3>
+
+            @* ── Theme ─────────────────────────────────────────────── *@
+            <div>
+                <p class="text-xs font-bold text-slate-500 uppercase mb-2">Tema visual</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <button @onclick="SetThemeDefault"
+                            class="@ThemeBtn("default") py-2 rounded-xl text-xs font-bold transition-all">
+                        Normal
+                    </button>
+                    <button @onclick="SetThemeContrast"
+                            class="@ThemeBtn("contrast") py-2 rounded-xl text-xs font-bold transition-all">
+                        Contraste
+                    </button>
+                    <button @onclick="SetThemeWarm"
+                            class="@ThemeBtn("warm") py-2 rounded-xl text-xs font-bold transition-all">
+                        Cálido
+                    </button>
+                </div>
+            </div>
+
+            @* ── Dyslexic font ──────────────────────────────────────── *@
+            <div>
+                <p class="text-xs font-bold text-slate-500 uppercase mb-2">Fuente</p>
+                <button @onclick="ToggleFont"
+                        class="w-full py-2 px-3 rounded-xl text-sm font-bold transition-all border-2
+                               @(_dyslexic ? "bg-amber-50 text-amber-700 border-amber-300" : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200")">
+                    @(_dyslexic ? "✓ OpenDyslexic activa" : "Activar OpenDyslexic")
+                </button>
+            </div>
+
+            @* ── Motion ─────────────────────────────────────────────── *@
+            <div>
+                <p class="text-xs font-bold text-slate-500 uppercase mb-2">Movimiento</p>
+                <button @onclick="ToggleMotion"
+                        class="w-full py-2 px-3 rounded-xl text-sm font-bold transition-all border-2
+                               @(_motion ? "bg-emerald-50 text-emerald-700 border-emerald-300" : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200")">
+                    @(_motion ? "✓ Animaciones activas" : "Animaciones desactivadas")
+                </button>
+            </div>
+
+            <button @onclick="Close"
+                    class="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-700 transition-all">
+                Cerrar
+            </button>
+        </div>
+    }
+
+    <button @onclick="Toggle"
+            title="Configuración de accesibilidad"
+            class="bg-white border-2 border-slate-200 hover:border-blue-400 text-slate-500 hover:text-blue-600
+                   w-11 h-11 rounded-full flex items-center justify-center shadow-md transition-all hover:scale-105">
+        <span class="material-symbols-outlined" style="font-size:20px;">settings</span>
+    </button>
+
+</div>
+
+@code {
+    private bool   _open     = false;
+    private string _theme    = "default";
+    private bool   _dyslexic = false;
+    private bool   _motion   = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var t = await JS.InvokeAsync<string?>("localStorage.getItem", "nbm_theme");
+            var f = await JS.InvokeAsync<string?>("localStorage.getItem", "nbm_font");
+            var m = await JS.InvokeAsync<string?>("localStorage.getItem", "nbm_motion");
+
+            if (!string.IsNullOrEmpty(t)) _theme    = t;
+            if (f == "dyslexic")          _dyslexic = true;
+            if (m == "0")                 _motion   = false;
+
+            await ApplyAll();
+            StateHasChanged();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "Error cargando preferencias de accesibilidad"); }
+    }
+
+    // ── Theme helpers ───────────────────────────────────────────────────────
+
+    private string ThemeBtn(string t) =>
+        _theme == t
+            ? "bg-blue-600 text-white shadow"
+            : "bg-slate-100 text-slate-600 hover:bg-slate-200";
+
+    private Task SetThemeDefault()  => ApplyTheme("default");
+    private Task SetThemeContrast() => ApplyTheme("contrast");
+    private Task SetThemeWarm()     => ApplyTheme("warm");
+
+    private async Task ApplyTheme(string t)
+    {
+        _theme = t;
+        await JS.InvokeVoidAsync("localStorage.setItem", "nbm_theme", t);
+        if (t == "default")
+            await JS.InvokeVoidAsync("eval", "document.documentElement.removeAttribute('data-theme')");
+        else
+            await JS.InvokeVoidAsync("eval", $"document.documentElement.setAttribute('data-theme','{t}')");
+        StateHasChanged();
+    }
+
+    // ── Font ────────────────────────────────────────────────────────────────
+
+    private async Task ToggleFont()
+    {
+        _dyslexic = !_dyslexic;
+        await JS.InvokeVoidAsync("localStorage.setItem", "nbm_font", _dyslexic ? "dyslexic" : "default");
+        if (_dyslexic)
+            await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-font','dyslexic')");
+        else
+            await JS.InvokeVoidAsync("eval", "document.documentElement.removeAttribute('data-font')");
+        StateHasChanged();
+    }
+
+    // ── Motion ──────────────────────────────────────────────────────────────
+
+    private async Task ToggleMotion()
+    {
+        _motion = !_motion;
+        await JS.InvokeVoidAsync("localStorage.setItem", "nbm_motion", _motion ? "1" : "0");
+        if (!_motion)
+            await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-motion','0')");
+        else
+            await JS.InvokeVoidAsync("eval", "document.documentElement.removeAttribute('data-motion')");
+        StateHasChanged();
+    }
+
+    // ── Apply all on init ───────────────────────────────────────────────────
+
+    private async Task ApplyAll()
+    {
+        if (_theme != "default")
+            await JS.InvokeVoidAsync("eval", $"document.documentElement.setAttribute('data-theme','{_theme}')");
+        if (_dyslexic)
+            await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-font','dyslexic')");
+        if (!_motion)
+            await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-motion','0')");
+    }
+
+    // ── Panel ───────────────────────────────────────────────────────────────
+
+    private void Toggle() => _open = !_open;
+    private void Close()  => _open = false;
+}

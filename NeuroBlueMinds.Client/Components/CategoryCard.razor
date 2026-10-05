@@ -1,0 +1,89 @@
+@using Microsoft.AspNetCore.Components
+@inject NavigationManager Nav
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<link rel="stylesheet" href="css/selector.css" />
+
+<div class="sel-@Category">
+    <div class="container py-8">
+        <div class="category-header">
+            <div style="width:100%">
+                <button class="back-btn" @onclick='() => Nav.NavigateTo("/dashboard")'>
+                    <span class="material-symbols-outlined" style="font-size:1.1rem;vertical-align:middle">arrow_back</span>
+                    @Loc.T("games.back")
+                </button>
+            </div>
+            <div class="header-info">
+                <div class="category-icon-large">
+                    <span class="material-symbols-outlined">@Icon</span>
+                </div>
+                <div class="header-text">
+                    <h1>@Title</h1>
+                    <p>@Subtitle</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="level-filter">
+            <button class="level-btn @(_filter == "all" ? "active" : "")" @onclick='() => SetFilter("all")'>
+                <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">grid_view</span>
+                @Loc.T("games.all")
+            </button>
+            @foreach (var lvl in new[]{"1","2","3"})
+            {
+                var l = lvl;
+                <button class="level-btn @(_filter == l ? "active" : "")" @onclick='() => SetFilter(l)'>
+                    <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">flag</span>
+                    @Loc.T("games.level", l)
+                </button>
+            }
+        </div>
+
+        <div class="games-container">
+            @{
+                var filtered = _filter == "all" ? Games : Games.Where(g => g.Nivel == _filter).ToList();
+                var grouped  = filtered.GroupBy(g => g.Nivel).OrderBy(g => g.Key);
+            }
+            @foreach (var group in grouped)
+            {
+                <div class="level-section">
+                    <h2 class="level-title">@Loc.T("games.level", group.Key)</h2>
+                    <div class="games-grid">
+                        @foreach (var game in group)
+                        {
+                            <div class="game-card">
+                                <div class="game-icon">
+                                    <span class="material-symbols-outlined">@game.Icon</span>
+                                </div>
+                                <h3 class="game-title">@game.Title</h3>
+                                <p class="game-description">@game.Description</p>
+                                <button class="game-button" @onclick="() => OnGameSelected.InvokeAsync(game)">
+                                    <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">play_arrow</span>
+                                    @Loc.T("games.play")
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Category { get; set; } = "visual";
+    [Parameter] public string Title    { get; set; } = "";
+    [Parameter] public string Subtitle { get; set; } = "";
+    [Parameter] public string Icon     { get; set; } = "";
+    [Parameter] public List<GameItem> Games { get; set; } = new();
+    [Parameter] public EventCallback<GameItem> OnGameSelected { get; set; }
+
+    private string _filter = "all";
+    private void SetFilter(string f) => _filter = f;
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public void Dispose() => Loc.OnLocaleChanged -= StateHasChanged;
+
+    public record GameItem(string Id, string Title, string Description, string Icon, string Path, string Nivel);
+}

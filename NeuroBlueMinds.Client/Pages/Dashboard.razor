@@ -1,0 +1,47 @@
+@* NeuroBlueMinds.Client/Pages/Dashboard.razor
+   Role router — reads role from JWT claim, shows the right experience *@
+@page "/dashboard"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+@if (isLoading)
+{
+    <div class="min-h-screen bg-[#0066CC] flex flex-col items-center justify-center">
+        <div class="w-24 h-24 border-8 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
+        <div class="text-white font-black text-2xl animate-pulse">Cargando...</div>
+    </div>
+}
+else
+{
+    @switch (role)
+    {
+        case "specialist":
+        case "admin":
+            <SpecialistDashboard />
+            break;
+        case "parent":
+            <ParentDashboard />
+            break;
+        default:
+            <ChildDashboard />
+            break;
+    }
+}
+
+@code {
+    private bool isLoading = true;
+    private string role = "child";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        role = auth.User.FindFirst(ClaimTypes.Role)?.Value ?? "child";
+        isLoading = false;
+        StateHasChanged();
+    }
+}

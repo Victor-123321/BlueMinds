@@ -1,0 +1,554 @@
+@* NeuroBlueMinds.Client/Components/Dashboards/ChildDashboard.razor
+   GOLD STANDARD NEUROEDUCATIONAL DASHBOARD FOR CHILDREN WITH TDAH, TEA, DISLEXIA, DISCALCULIA
+   Five sections: Hero (Next Activity) | Streak & Points | Learning Path | Achievements | Quick Stats *@
+@namespace NeuroBlueMinds.Client.Components.Dashboards
+
+@using System.Security.Claims
+@using NeuroBlueMinds.Shared.DTOs
+@using Microsoft.Extensions.Logging
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject ClientLocalizationService Loc
+@inject ILogger<ChildDashboard> Logger
+@implements IDisposable
+
+<PageTitle>BlueMinds</PageTitle>
+
+<div class="min-h-screen bg-gradient-to-b from-blue-50 to-purple-50">
+    @* ── Top Greeting Bar ── *@
+    <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-6 text-center">
+        <h1 class="text-4xl font-black">¡Hola, @childName! 👋</h1>
+        <p class="text-blue-100 text-sm mt-1 font-semibold">@Loc.T("dashboard.child.subtitle")</p>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-6 pb-20">
+
+        @* ════════════════════════════════════════════════════════════════════════
+            SECTION 1: "¿QUÉ HAGO HOY?" — Hero Widget with Next Activity Recommendation
+            ════════════════════════════════════════════════════════════════════════ *@
+        <div class="mt-8 mb-10">
+            @if (isLoadingHero)
+            {
+                <div class="bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-purple-100 animate-pulse">
+                    <div class="bg-gradient-to-r from-purple-200 to-blue-200 px-8 py-8 text-center">
+                        <div class="h-8 bg-white/50 rounded-xl w-48 mx-auto mb-4"></div>
+                        <div class="w-24 h-24 rounded-full bg-white/50 mx-auto"></div>
+                    </div>
+                    <div class="px-8 py-6 text-center space-y-3">
+                        <div class="h-6 bg-slate-200 rounded-xl w-56 mx-auto"></div>
+                        <div class="h-4 bg-slate-100 rounded-xl w-40 mx-auto"></div>
+                    </div>
+                </div>
+            }
+            else if (nextActivityRecommendation != null)
+            {
+                <div class="bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-purple-200 hover:shadow-2xl transition-shadow duration-300">
+                    <div class="bg-gradient-to-r from-purple-500 to-blue-500 px-8 py-8 text-center">
+                        <h2 class="text-white text-2xl font-black mb-4">¿Qué hago hoy?</h2>
+                        <button @onclick="() => NavigateToNextActivity()"
+                                class="bg-white hover:bg-yellow-50 text-purple-600 font-black text-5xl rounded-full w-24 h-24 flex items-center justify-center mx-auto shadow-lg hover:scale-110 transition-transform duration-200 active:scale-95">
+                            ▶
+                        </button>
+                    </div>
+                    <div class="px-8 py-6 text-center">
+                        <h3 class="text-2xl font-black text-slate-800 mb-2">
+                            @nextActivityRecommendation.ActivityName
+                        </h3>
+                        <div class="flex gap-3 justify-center items-center mb-4 flex-wrap">
+                            <span class="bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">
+                                ⏱ @nextActivityRecommendation.EstimatedMinutes min
+                            </span>
+                            <span class="@GetStyleBadgeClass(nextActivityRecommendation.LearningStyle) text-xs font-bold px-3 py-1 rounded-full">
+                                @GetStyleEmoji(nextActivityRecommendation.LearningStyle) @Loc.T($"style.{nextActivityRecommendation.LearningStyle.ToLower()}")
+                            </span>
+                        </div>
+                        <p class="text-slate-600 text-sm font-semibold">Recomendado por BlueBot 🤖</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="bg-white rounded-3xl shadow-xl p-8 text-center border-4 border-blue-200">
+                    <div class="text-5xl mb-4">🎮</div>
+                    <h3 class="text-2xl font-black text-slate-800 mb-4">¡Explora un juego nuevo!</h3>
+                    <button @onclick='() => Nav.NavigateTo("/juegos")'
+                            class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-black text-lg px-8 py-4 rounded-full transition-all hover:scale-105 active:scale-95">
+                        Ir al selector de juegos →
+                    </button>
+                </div>
+            }
+        </div>
+
+        @* ════════════════════════════════════════════════════════════════════════
+            SECTION 2: Racha y Puntos (Streak & Points / XP Progress)
+            ════════════════════════════════════════════════════════════════════════ *@
+        <div class="mb-10">
+            @if (isLoadingStreak)
+            {
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="h-32 bg-white rounded-2xl shadow-lg animate-pulse"></div>
+                    <div class="h-32 bg-white rounded-2xl shadow-lg animate-pulse"></div>
+                </div>
+            }
+            else
+            {
+                <div class="grid grid-cols-2 gap-4">
+                    @* Streak Card *@
+                    <div class="bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl shadow-lg p-6 text-white text-center">
+                        <div class="text-5xl mb-2">🔥</div>
+                        <div class="text-3xl font-black">@currentStreak</div>
+                        <p class="text-sm font-bold text-orange-100 mt-2">Racha actual</p>
+                        <p class="text-xs text-orange-100 mt-1">@(currentStreak > 0 ? "¡Sigue así!" : "Comienza hoy")</p>
+                    </div>
+
+                    @* XP / Level Card *@
+                    <div class="bg-gradient-to-br from-purple-400 to-indigo-500 rounded-2xl shadow-lg p-6 text-white">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <p class="text-xs font-bold text-purple-100">Nivel actual</p>
+                                <div class="text-2xl font-black">@currentLevel</div>
+                            </div>
+                            <div class="text-4xl">⭐</div>
+                        </div>
+                        <div class="bg-white/20 rounded-full h-3 overflow-hidden">
+                            <div class="bg-white h-full rounded-full transition-all duration-500"
+                                 style="width: @xpProgressPercent%"></div>
+                        </div>
+                        <p class="text-xs font-bold text-purple-100 mt-2">@totalXp XP</p>
+                    </div>
+                </div>
+
+                @* Weekly Streak Days *@
+                <div class="mt-4 bg-white rounded-2xl shadow-lg p-5">
+                    <p class="text-xs font-bold text-slate-600 mb-3 text-center">ESTA SEMANA</p>
+                    <div class="flex justify-between gap-1">
+                        @foreach (var day in weekDays)
+                        {
+                            <div class="flex-1 flex flex-col items-center gap-2">
+                                <div class="text-xs font-bold text-slate-600">@day.DayLabel</div>
+                                <div class="@(day.IsActive ? "bg-blue-500" : "bg-slate-200") rounded-full w-10 h-10 flex items-center justify-center">
+                                    <span class="text-lg">@(day.IsActive ? "✓" : "")</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ════════════════════════════════════════════════════════════════════════
+            SECTION 3: Roadmap Visual (Learning Path Timeline)
+            ════════════════════════════════════════════════════════════════════════ *@
+        <div class="mb-10">
+            <h2 class="text-2xl font-black text-slate-800 mb-4">Tu camino de aprendizaje</h2>
+            @if (isLoadingRoadmap)
+            {
+                <div class="flex gap-3 overflow-x-auto pb-4">
+                    @for (int i = 0; i < 5; i++)
+                    {
+                        <div class="h-24 w-20 bg-white rounded-2xl shadow-lg flex-shrink-0 animate-pulse"></div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="flex gap-2 overflow-x-auto pb-4 snap-x snap-mandatory">
+                    @foreach (var (milestone, index) in roadmapMilestones.Select((m, i) => (m, i)))
+                    {
+                        var isCurrentMilestone = index == currentMilestoneIndex;
+                        <div class="flex-shrink-0 snap-start">
+                            <div class="@GetMilestoneCardClass(milestone, isCurrentMilestone) rounded-2xl p-4 w-24 text-center shadow-lg transition-all duration-300 @(isCurrentMilestone ? "ring-4 ring-yellow-300 animate-pulse" : "")"
+                                 title="@milestone.Name">
+                                <div class="text-3xl mb-2">@GetMilestoneIcon(milestone)</div>
+                                <p class="text-xs font-bold text-slate-700 line-clamp-2 mb-2">@milestone.Name</p>
+                                <div class="text-lg">@GetMilestoneStatus(milestone, isCurrentMilestone)</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @* ════════════════════════════════════════════════════════════════════════
+            SECTION 4: Logros (Real DB-backed AchievementBadges component)
+            ════════════════════════════════════════════════════════════════════════ *@
+        <div class="bg-white rounded-3xl shadow-xl p-6 mb-10">
+            <h2 class="text-2xl font-black text-slate-800 mb-4 flex items-center gap-2">
+                🏆 Mis Logros
+            </h2>
+            @if (_childProfileId > 0)
+            {
+                <AchievementBadges ChildProfileId="_childProfileId" AutoEvaluate="true" />
+            }
+            else
+            {
+                <div class="grid grid-cols-3 gap-3">
+                    @for (int i = 0; i < 6; i++) { <div class="bg-slate-100 rounded-2xl h-24 animate-pulse"></div> }
+                </div>
+            }
+        </div>
+
+        @* ── Modo Calma button ─────────────────────────────────────────────────── *@
+        <div class="bg-gradient-to-r from-sky-100 to-teal-100 rounded-3xl p-5 mb-10 flex items-center justify-between">
+            <div>
+                <p class="font-black text-slate-700 text-base">¿Día difícil? 💙</p>
+                <p class="text-slate-500 text-sm">Activa Modo Calma para relajarte.</p>
+            </div>
+            <button @onclick='() => Nav.NavigateTo("/calma")'
+                    class="bg-sky-500 hover:bg-sky-600 text-white font-black px-5 py-3
+                           rounded-2xl shadow transition-all hover:scale-105 shrink-0">
+                ☁️ Calma
+            </button>
+        </div>
+
+        @* ════════════════════════════════════════════════════════════════════════
+            SECTION 5: Estadísticas Rápidas (Quick Stats)
+            ════════════════════════════════════════════════════════════════════════ *@
+        <div class="mb-10">
+            <h2 class="text-2xl font-black text-slate-800 mb-4">Tus estadísticas</h2>
+            @if (isLoadingStats)
+            {
+                <div class="grid grid-cols-3 gap-4">
+                    @for (int i = 0; i < 3; i++)
+                    {
+                        <div class="h-24 bg-white rounded-2xl shadow-lg animate-pulse"></div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="grid grid-cols-3 gap-4">
+                    @* Stat 1: Games Played *@
+                    <div class="bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl shadow-lg p-5 text-white text-center">
+                        <div class="text-4xl mb-2">🎮</div>
+                        <div class="text-3xl font-black">@totalGamesPlayed</div>
+                        <p class="text-xs font-bold text-blue-100 mt-2">Juegos jugados</p>
+                    </div>
+
+                    @* Stat 2: Average Accuracy *@
+                    <div class="bg-gradient-to-br from-green-400 to-green-600 rounded-2xl shadow-lg p-5 text-white text-center">
+                        <div class="text-4xl mb-2">🎯</div>
+                        <div class="text-3xl font-black">@averageAccuracy%</div>
+                        <p class="text-xs font-bold text-green-100 mt-2">Precisión promedio</p>
+                    </div>
+
+                    @* Stat 3: Dominant Style *@
+                    <div class="bg-gradient-to-br from-purple-400 to-purple-600 rounded-2xl shadow-lg p-5 text-white text-center">
+                        <div class="text-4xl mb-2">@GetStyleEmoji(dominantStyle)</div>
+                        <div class="text-2xl font-black">@Loc.T($"style.{dominantStyle.ToLower()}")</div>
+                        <p class="text-xs font-bold text-purple-100 mt-2">Estilo dominante</p>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Bottom Action Buttons ── *@
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <button @onclick='() => Nav.NavigateTo("/quiz")'
+                    class="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-black py-4 px-6 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95">
+                <span class="block text-2xl mb-1">📝</span>
+                <span class="text-sm">Quiz</span>
+            </button>
+            <button @onclick='() => Nav.NavigateTo("/perfil")'
+                    class="bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-black py-4 px-6 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95">
+                <span class="block text-2xl mb-1">👤</span>
+                <span class="text-sm">Perfil</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string childName = "Explorador";
+    private string dominantStyle = "visual";
+
+    // Section 1: Hero
+    private ActivityRecommendation? nextActivityRecommendation;
+    private bool isLoadingHero = true;
+
+    // Section 2: Streak & Points
+    private int currentStreak = 0;
+    private int totalXp = 0;
+    private string currentLevel = "Explorador";
+    private double xpProgressPercent = 0;
+    private List<WeekDay> weekDays = new();
+    private bool isLoadingStreak = true;
+
+    // Section 3: Roadmap
+    private List<RoadmapStep> roadmapMilestones = new();
+    private int currentMilestoneIndex = 0;
+    private bool isLoadingRoadmap = true;
+
+    // Section 4: Achievements (real DB component)
+    private int _childProfileId = 0;
+
+    // Section 5: Quick Stats
+    private int totalGamesPlayed = 0;
+    private int averageAccuracy = 0;
+    private bool isLoadingStats = true;
+
+    // Data models
+    private record ActivityRecommendation(string ActivityName, int EstimatedMinutes, string LearningStyle, string Route);
+    private record WeekDay(string DayLabel, bool IsActive);
+    private record RoadmapStep(string Name, string Type, bool IsCompleted, string LearningStyle);
+    private class ChildProfileIdDto { public int Id { get; set; } public string? Name { get; set; } public string? Avatar { get; set; } }
+
+    protected override void OnInitialized()
+        => Loc.OnLocaleChanged += StateHasChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var auth      = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userIdStr = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            childName     = auth.User.FindFirst(ClaimTypes.Name)?.Value ?? "Explorador";
+
+            if (!int.TryParse(userIdStr, out var userId)) return;
+
+            // Load all data in parallel — also load child profile id for achievements
+            var summaryTask       = Http.GetFromJsonAsync<UserSummaryDTO>($"api/dashboard/summary/{userId}");
+            var roadmapTask       = Http.GetFromJsonAsync<NeuroprofileAnalysisDto>($"api/dashboard/roadmap/{userId}/{Uri.EscapeDataString(childName)}");
+            var historyTask       = Http.GetFromJsonAsync<List<SessionHistory>>($"api/dashboard/history/{userId}");
+            var childProfileTask  = Http.GetFromJsonAsync<ChildProfileIdDto>($"api/profiles/by-user/{userId}");
+
+            await Task.WhenAll(summaryTask, roadmapTask, historyTask, childProfileTask);
+
+            var summary        = await summaryTask;
+            var profile        = await roadmapTask;
+            var history        = await historyTask;
+            var childProfileId = await childProfileTask;
+
+            if (childProfileId != null && childProfileId.Id > 0)
+                _childProfileId = childProfileId.Id;
+
+            // Process summary data
+            if (summary != null)
+            {
+                totalGamesPlayed = summary.GamesPlayed;
+                averageAccuracy  = (int)Math.Round(summary.AvgAccuracy);
+            }
+
+            // Process roadmap/profile data
+            if (profile != null)
+            {
+                dominantStyle = profile.DominantStyle ?? "visual";
+
+                // Build hero recommendation from roadmap
+                if (profile.GameRecommendations?.Any() == true)
+                {
+                    var rec = profile.GameRecommendations.First();
+                    nextActivityRecommendation = new ActivityRecommendation(
+                        rec,
+                        15,
+                        profile.DominantStyle ?? "visual",
+                        $"/juegos/{profile.DominantStyle?.ToLower() ?? "visual"}"
+                    );
+                }
+
+                // Build roadmap milestones
+                roadmapMilestones = BuildRoadmapSteps(profile);
+            }
+
+            // Process history for streak & achievements
+            ProcessHistoryData(history, userId);
+
+            // Calculate XP and level
+            CalculateXpAndLevel();
+
+            // Build week days
+            BuildWeekDays();
+
+            isLoadingHero = false;
+            isLoadingStreak = false;
+            isLoadingRoadmap = false;
+            isLoadingStats = false;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load child dashboard data");
+            isLoadingHero = false;
+            isLoadingStreak = false;
+            isLoadingRoadmap = false;
+            isLoadingStats = false;
+        }
+    }
+
+    private void ProcessHistoryData(List<SessionHistory>? history, int userId)
+    {
+        if (history == null || !history.Any()) return;
+
+        // Calculate streak from game sessions
+        var gameHistory = history.Where(h => h.CreatedAt != default).OrderByDescending(h => h.CreatedAt).ToList();
+        currentStreak = CalculateStreak(gameHistory);
+        totalXp = gameHistory.Count * 25 + (totalGamesPlayed * 10); // Base XP calculation
+    }
+
+    private int CalculateStreak(List<SessionHistory> history)
+    {
+        if (!history.Any()) return 0;
+
+        var today = DateTime.UtcNow.Date;
+        int streak = 0;
+        var processedDates = new HashSet<DateTime>();
+
+        foreach (var session in history)
+        {
+            var sessionDate = session.CreatedAt.Date;
+            if (processedDates.Contains(sessionDate)) continue;
+
+            var daysAgo = (today - sessionDate).Days;
+            if (daysAgo == streak) streak++;
+            else break;
+
+            processedDates.Add(sessionDate);
+        }
+
+        return streak;
+    }
+
+    private void CalculateXpAndLevel()
+    {
+        // Level thresholds: 0-99=Explorador, 100-249=Aventurero, 250+=Maestro
+        if (totalXp < 100)
+        {
+            currentLevel = "Explorador";
+            xpProgressPercent = (totalXp / 100.0) * 100;
+        }
+        else if (totalXp < 250)
+        {
+            currentLevel = "Aventurero";
+            xpProgressPercent = ((totalXp - 100) / 150.0) * 100;
+        }
+        else
+        {
+            currentLevel = "Maestro";
+            xpProgressPercent = Math.Min(100, ((totalXp - 250) / 200.0) * 100);
+        }
+    }
+
+    private void BuildWeekDays()
+    {
+        var today = DateTime.UtcNow.Date;
+        var daysOfWeek = new[] { "L", "M", "X", "J", "V", "S", "D" };
+        weekDays = new();
+
+        // Start from Monday of current week
+        var dayOfWeek = (int)today.DayOfWeek;
+        var startOfWeek = today.AddDays(-(dayOfWeek == 0 ? 6 : dayOfWeek - 1));
+
+        for (int i = 0; i < 7; i++)
+        {
+            var date = startOfWeek.AddDays(i);
+            var isActive = date == today; // Simple: only today is active (in real scenario, check if user played that day)
+            weekDays.Add(new WeekDay(daysOfWeek[i], isActive));
+        }
+    }
+
+    private List<RoadmapStep> BuildRoadmapSteps(NeuroprofileAnalysisDto profile)
+    {
+        var steps = new List<RoadmapStep>();
+
+        // Default roadmap if none provided
+        if (profile?.Roadmap?.Count == 0)
+        {
+            steps = new()
+            {
+                new RoadmapStep("Completa tu quiz VARK", "📝", false, "visual"),
+                new RoadmapStep("Juega tu primer juego", "🎮", false, profile?.DominantStyle ?? "visual"),
+                new RoadmapStep("Obtén tu análisis", "⭐", false, "visual"),
+            };
+        }
+        else if (profile?.Roadmap != null)
+        {
+            // Map from API roadmap (take max 7 to avoid overwhelm)
+            steps = profile.Roadmap
+                .Take(7)
+                .Select((m, idx) => new RoadmapStep(
+                    m.Title,
+                    idx == 0 ? "🎯" : m.Completed ? "✓" : "🔒",
+                    m.Completed,
+                    m.Style ?? "visual"
+                ))
+                .ToList();
+        }
+
+        currentMilestoneIndex = steps.FindIndex(s => !s.IsCompleted);
+        if (currentMilestoneIndex < 0) currentMilestoneIndex = 0;
+
+        return steps;
+    }
+
+
+    private void NavigateToNextActivity()
+    {
+        if (nextActivityRecommendation != null)
+            Nav.NavigateTo(nextActivityRecommendation.Route);
+        else
+            Nav.NavigateTo("/juegos");
+    }
+
+    // ── Helper Methods for Styling ──
+
+    private string GetStyleBadgeClass(string style) => style?.ToLower() switch
+    {
+        "auditivo" => "bg-green-100 text-green-700",
+        "kinestesico" => "bg-orange-100 text-orange-700",
+        "lectoescritura" => "bg-purple-100 text-purple-700",
+        _ => "bg-blue-100 text-blue-700"
+    };
+
+    private string GetStyleEmoji(string style) => style?.ToLower() switch
+    {
+        "auditivo" => "🔊",
+        "kinestesico" => "👐",
+        "lectoescritura" => "📚",
+        _ => "👁"
+    };
+
+    private string GetMilestoneCardClass(RoadmapStep milestone, bool isCurrent) => isCurrent
+        ? "bg-gradient-to-b from-yellow-300 to-yellow-200 border-2 border-yellow-500"
+        : milestone.IsCompleted
+            ? "bg-gradient-to-b from-green-100 to-green-200 border-2 border-green-400"
+            : "bg-gradient-to-b from-slate-100 to-slate-200 border-2 border-slate-400";
+
+    private string GetMilestoneIcon(RoadmapStep milestone) => milestone.Type switch
+    {
+        "🎮" => "🎮",
+        "📝" => "📝",
+        "⭐" => "⭐",
+        _ => "🔒"
+    };
+
+    private string GetMilestoneStatus(RoadmapStep milestone, bool isCurrent) => isCurrent
+        ? "🎯"
+        : milestone.IsCompleted
+            ? "✓"
+            : "🔒";
+
+
+    public void Dispose()
+        => Loc.OnLocaleChanged -= StateHasChanged;
+}
+
+@* ── Skeleton Loader for Hero Section ── *@
+<style>
+    @@keyframes pulse-animation {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    .animate-pulse {
+        animation: pulse-animation 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .line-clamp-2 {
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+</style>
+

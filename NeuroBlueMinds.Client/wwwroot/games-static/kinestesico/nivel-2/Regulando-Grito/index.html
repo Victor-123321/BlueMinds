@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regulando el Grito - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Regulando el Grito</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <!-- Progress -->
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                    <span id="score">0 puntos</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Main Game Card -->
+            <div class="regulation-card">
+                <h2>¿Cuál niño está calmado? 😌</h2>
+
+                <!-- Anxiety Level Indicator -->
+                <div class="anxiety-indicator">
+                    <span>Nivel de Ansiedad:</span>
+                    <div class="anxiety-meter">
+                        <div class="anxiety-bar" id="anxietyBar"></div>
+                    </div>
+                    <span id="anxietyLevel">Bajo</span>
+                </div>
+
+                <!-- Characters Display -->
+                <div class="characters-stage">
+                    <!-- Angry Character -->
+                    <div class="character-container angry-side">
+                        <div class="character-box angry" id="angryCharacter">
+                            <div class="character-head angry-head">
+                                <div class="eyes angry-eyes">
+                                    <div class="eye"></div>
+                                    <div class="eye"></div>
+                                </div>
+                                <div class="mouth angry-mouth"></div>
+                            </div>
+                            <div class="character-body shaking">
+                                <div class="arms">
+                                    <div class="arm"></div>
+                                    <div class="arm"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="character-label">¿Este niño está calmado?</div>
+                        <button class="choice-button" id="angryBtn" onclick="selectCharacter('angry')">
+                            <i class="fas fa-hand-point-up"></i> Este
+                        </button>
+                    </div>
+
+                    <!-- Calm Character -->
+                    <div class="character-container calm-side">
+                        <div class="character-box calm" id="calmCharacter">
+                            <div class="character-head calm-head">
+                                <div class="eyes calm-eyes">
+                                    <div class="eye"></div>
+                                    <div class="eye"></div>
+                                </div>
+                                <div class="mouth calm-mouth"></div>
+                            </div>
+                            <div class="character-body breathing">
+                                <div class="arms">
+                                    <div class="arm"></div>
+                                    <div class="arm"></div>
+                                </div>
+                                <div class="breathing-circle" id="breathingCircle"></div>
+                            </div>
+                        </div>
+                        <div class="character-label">¿Este niño está calmado?</div>
+                        <button class="choice-button" id="calmBtn" onclick="selectCharacter('calm')">
+                            <i class="fas fa-hand-point-up"></i> Este
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Feedback -->
+                <div id="feedback" class="feedback hidden">
+                    <span id="feedback-text"></span>
+                </div>
+
+                <!-- Breathing Guide Section -->
+                <div class="breathing-guide" id="breathingGuide" style="display: none;">
+                    <h3>🫁 Respira Conmigo</h3>
+                    <div class="breathing-exercise">
+                        <div class="breath-circle" id="breathCircle">
+                            <span id="breathInstruction">Inhala</span>
+                        </div>
+                        <div class="breath-info">
+                            <p id="breathDuration">Inhala: 4 segundos</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Voice & Breathing Analysis -->
+                <div class="analysis-section" id="analysisSection" style="display: none;">
+                    <h4>📊 Análisis de Regulación</h4>
+                    <div class="analysis-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Volumen de Voz:</span>
+                            <div class="progress-bar-small">
+                                <div class="progress-fill-small" id="voiceVolumeProgress"></div>
+                            </div>
+                            <span class="metric-value" id="voiceVolume">--%</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Ritmo Respiratorio:</span>
+                            <div class="progress-bar-small">
+                                <div class="progress-fill-small" id="breathRateProgress"></div>
+                            </div>
+                            <span class="metric-value" id="breathRate">--%</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Nivel de Ansiedad Detectado:</span>
+                            <span class="metric-value" id="detectedAnxiety">Bajo</span>
+                        </div>
+
+                        <div class="metric">
+                            <span class="metric-label">Autocontrol:</span>
+                            <span class="metric-value" id="selfControl">--%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Adaptation Notice -->
+                <div id="adaptationNotice" class="adaptation-notice hidden">
+                    <i class="fas fa-lightbulb"></i>
+                    <span id="adaptationText"></span>
+                </div>
+
+                <!-- Camera Section -->
+                <div class="camera-section" id="cameraSection" style="display: none;">
+                    <div class="camera-controls">
+                        <button class="camera-btn start" id="startCameraBtn" onclick="startCamera()">
+                            <i class="fas fa-video"></i> Iniciar Cámara
+                        </button>
+                        <button class="camera-btn stop" id="stopCameraBtn" onclick="stopCamera()" style="display: none;">
+                            <i class="fas fa-stop"></i> Detener
+                        </button>
+                    </div>
+
+                    <div class="camera-container">
+                        <div class="camera-feed" id="cameraFeedContainer">
+                            <video id="cameraFeed" style="display: none;"></video>
+                            <span id="cameraPlaceholder">La cámara se abrirá aquí</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="action-controls">
+                    <button id="continue-button" class="action-button primary" style="display: none;">
+                        <i class="fas fa-arrow-right"></i> Continuar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions-card">
+                <p>
+                    💡 <span class="font-bold">Cómo jugar:</span> Mira los dos niños. Señala cuál está calmado. Luego, imita su respiración calmada.
+                </p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

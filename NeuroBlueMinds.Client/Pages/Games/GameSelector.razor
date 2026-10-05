@@ -1,0 +1,244 @@
+@using Microsoft.AspNetCore.Components
+@using NeuroBlueMinds.Shared.DTOs
+@inject NavigationManager Nav
+@inject ClientLocalizationService Loc
+@implements IDisposable
+
+<link rel="stylesheet" href="css/selector.css" />
+
+<div class="sel-@Category">
+    <div class="container py-8">
+
+        <!-- Header -->
+        <div class="category-header">
+            <div style="width:100%">
+                <button class="back-btn" @onclick='() => Nav.NavigateTo("/dashboard")'>
+                    <span class="material-symbols-outlined" style="font-size:1.1rem;vertical-align:middle">arrow_back</span>
+                    @Loc.T("games.back")
+                </button>
+            </div>
+            <div class="header-info">
+                <div class="category-icon-large">
+                    <span class="material-symbols-outlined">@Icon</span>
+                </div>
+                <div class="header-text">
+                    <h1>@Title</h1>
+                    <p>@Subtitle</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading state -->
+        @if (IsLoading)
+        {
+            <div class="flex items-center justify-center py-6 gap-3 text-slate-400">
+                <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                </svg>
+                <span class="text-sm font-medium">Preparando tus juegos...</span>
+            </div>
+        }
+
+        <!-- "Para ti hoy" adaptive recommendations section -->
+        @if (!IsLoading && Recommendations != null && Recommendations.Count > 0)
+        {
+            <div class="mb-8">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-outlined text-amber-500" style="font-size:1.4rem">auto_awesome</span>
+                    <h2 class="text-lg font-bold text-slate-800">Para ti hoy</h2>
+                    <span class="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">IA Adaptativa</span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(SessionMessage))
+                {
+                    <p class="text-sm text-slate-500 mb-4 italic">@SessionMessage</p>
+                }
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    @foreach (var rec in Recommendations)
+                    {
+                        var matchedGame = Games.FirstOrDefault(g => g.Id == rec.GameId);
+                        if (matchedGame == null) continue;
+
+                        var (badgeColor, badgeIcon, badgeLabel) = GetBadgeStyle(rec.ReasonType);
+
+                        <div class="relative bg-white rounded-2xl shadow-md border-2 @GetCardBorderColor(rec.ReasonType) p-4 flex flex-col gap-3 hover:shadow-lg transition-all cursor-pointer group"
+                             @onclick="() => OnGameSelected.InvokeAsync(matchedGame)">
+
+                            <!-- reason-type badge -->
+                            <div class="flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-sm @badgeColor">@badgeIcon</span>
+                                <span class="text-xs font-semibold @badgeColor">@badgeLabel</span>
+                                <span class="ml-auto text-xs text-slate-400">Nivel @rec.Level</span>
+                            </div>
+
+                            <!-- game icon + title -->
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl @GetIconBg(rec.ReasonType) flex items-center justify-center flex-shrink-0">
+                                    <span class="material-symbols-outlined text-white" style="font-size:1.2rem">@matchedGame.Icon</span>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-800 text-sm leading-tight">@matchedGame.Title</p>
+                                    <p class="text-xs text-slate-500 leading-tight mt-0.5">@matchedGame.Description</p>
+                                </div>
+                            </div>
+
+                            <!-- reason text -->
+                            @if (!string.IsNullOrEmpty(rec.Reason))
+                            {
+                                <p class="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 leading-relaxed">
+                                    @rec.Reason
+                                </p>
+                            }
+
+                            <!-- play button -->
+                            <button class="mt-auto w-full @GetPlayBtnColor(rec.ReasonType) text-white text-sm font-semibold py-2 rounded-xl flex items-center justify-center gap-1.5 group-hover:scale-[1.02] transition-transform">
+                                <span class="material-symbols-outlined" style="font-size:1rem">play_arrow</span>
+                                Jugar ahora
+                            </button>
+
+                            <!-- confidence-restore ribbon -->
+                            @if (rec.IsConfidenceGame)
+                            {
+                                <div class="absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow">
+                                    ⭐ Fácil
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- divider -->
+            <div class="flex items-center gap-3 mb-6">
+                <div class="flex-1 h-px bg-slate-200"></div>
+                <span class="text-xs text-slate-400 font-medium">Todos los juegos</span>
+                <div class="flex-1 h-px bg-slate-200"></div>
+            </div>
+        }
+
+        <!-- Level filter -->
+        <div class="level-filter">
+            <button class="level-btn @(_filter == "all" ? "active" : "")" @onclick='() => SetFilter("all")'>
+                <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">grid_view</span>
+                @Loc.T("games.all")
+            </button>
+            @foreach (var lvl in new[]{"1","2","3"})
+            {
+                var l = lvl;
+                <button class="level-btn @(_filter == l ? "active" : "")" @onclick='() => SetFilter(l)'>
+                    <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">flag</span>
+                    @Loc.T("games.level", l)
+                </button>
+            }
+        </div>
+
+        <!-- Games grid -->
+        <div class="games-container">
+            @{
+                var filtered = _filter == "all" ? Games : Games.Where(g => g.Nivel == _filter).ToList();
+                var grouped  = filtered.GroupBy(g => g.Nivel).OrderBy(g => g.Key);
+            }
+            @foreach (var group in grouped)
+            {
+                <div class="level-section">
+                    <h2 class="level-title">@Loc.T("games.level", group.Key)</h2>
+                    <div class="games-grid">
+                        @foreach (var game in group)
+                        {
+                            var rec = Recommendations?.FirstOrDefault(r => r.GameId == game.Id);
+                            var isRecommended = rec != null;
+
+                            <div class="game-card @(isRecommended ? "ring-2 ring-amber-300 shadow-amber-100 shadow-md" : "")">
+                                @if (isRecommended)
+                                {
+                                    <div class="flex items-center gap-1 mb-1">
+                                        <span class="material-symbols-outlined text-amber-500" style="font-size:0.9rem">auto_awesome</span>
+                                        <span class="text-xs text-amber-600 font-semibold">Recomendado</span>
+                                    </div>
+                                }
+                                <div class="game-icon">
+                                    <span class="material-symbols-outlined">@game.Icon</span>
+                                </div>
+                                <h3 class="game-title">@game.Title</h3>
+                                <p class="game-description">@game.Description</p>
+                                <button class="game-button" @onclick="() => OnGameSelected.InvokeAsync(game)">
+                                    <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">play_arrow</span>
+                                    @Loc.T("games.play")
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Category    { get; set; } = "visual";
+    [Parameter] public string Title       { get; set; } = "";
+    [Parameter] public string Subtitle    { get; set; } = "";
+    [Parameter] public string Icon        { get; set; } = "";
+    [Parameter] public List<GameItem>          Games           { get; set; } = new();
+    [Parameter] public EventCallback<GameItem> OnGameSelected  { get; set; }
+
+    // Adaptive parameters
+    /// <summary>Recommendations pre-filtered to this style by the parent page.</summary>
+    [Parameter] public List<ActivityRecommendationDto>? Recommendations { get; set; }
+    /// <summary>Human-readable session message from the adaptive engine.</summary>
+    [Parameter] public string SessionMessage { get; set; } = "";
+    /// <summary>Shows a loading spinner while the parent page fetches recommendations.</summary>
+    [Parameter] public bool IsLoading { get; set; } = false;
+
+    private string _filter = "all";
+    private void SetFilter(string f) => _filter = f;
+
+    protected override void OnInitialized() => Loc.OnLocaleChanged += StateHasChanged;
+    public void Dispose() => Loc.OnLocaleChanged -= StateHasChanged;
+
+    public record GameItem(string Id, string Title, string Description, string Icon, string Path, string Nivel);
+
+    // Badge styling helpers
+    private static (string color, string icon, string label) GetBadgeStyle(string reasonType) =>
+        reasonType switch
+        {
+            "confidence"  => ("text-green-600",  "favorite",       "Ganar confianza"),
+            "strengthen"  => ("text-blue-600",   "fitness_center", "Reforzar"),
+            "challenge"   => ("text-orange-600", "rocket_launch",  "Nuevo desafío"),
+            "variety"     => ("text-purple-600", "shuffle",        "Variedad"),
+            _             => ("text-slate-500",  "star",           "Recomendado"),
+        };
+
+    private static string GetCardBorderColor(string reasonType) =>
+        reasonType switch
+        {
+            "confidence" => "border-green-300",
+            "strengthen" => "border-blue-300",
+            "challenge"  => "border-orange-300",
+            "variety"    => "border-purple-300",
+            _            => "border-slate-200",
+        };
+
+    private static string GetIconBg(string reasonType) =>
+        reasonType switch
+        {
+            "confidence" => "bg-green-500",
+            "strengthen" => "bg-blue-500",
+            "challenge"  => "bg-orange-500",
+            "variety"    => "bg-purple-500",
+            _            => "bg-slate-400",
+        };
+
+    private static string GetPlayBtnColor(string reasonType) =>
+        reasonType switch
+        {
+            "confidence" => "bg-green-500 hover:bg-green-600",
+            "strengthen" => "bg-blue-500 hover:bg-blue-600",
+            "challenge"  => "bg-orange-500 hover:bg-orange-600",
+            "variety"    => "bg-purple-500 hover:bg-purple-600",
+            _            => "bg-blue-600 hover:bg-blue-700",
+        };
+}

@@ -1,0 +1,104 @@
+/* wwwroot/css/research.css — módulo de sesión en tableta (Protocolo C&W-NM).
+   Hoja propia con prefijo rs- porque tailwind-output.css solo trae las clases ya compiladas.
+   Botones grandes y colores suaves; nada parpadea. */
+
+.rs-root { min-height: 100vh; background: #f8fafc; color: #0f172a; font-family: 'Nunito', system-ui, sans-serif; }
+
+/* ── Página de inicio ─────────────────────────────────────────────────────── */
+.rs-page { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+.rs-header h1 { font-size: 1.5rem; font-weight: 800; margin: 0 0 4px; }
+.rs-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; }
+.rs-card h2 { font-size: 1.1rem; font-weight: 800; margin: 0 0 12px; }
+.rs-subtitle { font-size: 1rem; font-weight: 800; margin: 12px 0 4px; }
+.rs-muted { color: #64748b; font-size: 0.9rem; margin: 0 0 12px; }
+.rs-error { color: #b91c1c; font-weight: 700; }
+.rs-ok { color: #047857; font-weight: 700; margin-left: 8px; }
+.rs-link { color: #1d4ed8; font-weight: 700; font-size: 0.9rem; }
+.rs-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.rs-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 700; color: #334155; }
+.rs-form input, .rs-form select, .rs-staff input, .rs-staff select {
+  border: 1px solid #cbd5e1; border-radius: 10px; padding: 8px 10px; font-size: 1rem; background: #fff; color: #0f172a;
+}
+.rs-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.rs-table th, .rs-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #e2e8f0; }
+.rs-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.rs-cal-row { display: grid; grid-template-columns: 160px 1fr 48px auto; gap: 12px; align-items: center; margin-bottom: 8px; }
+.rs-cal-label { font-weight: 700; font-size: 0.9rem; }
+
+/* ── Botones ──────────────────────────────────────────────────────────────── */
+.rs-btn { background: #1d4ed8; color: #fff; border: none; border-radius: 12px; padding: 10px 18px; font-weight: 800; font-size: 0.95rem; cursor: pointer; }
+.rs-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.rs-btn-small { padding: 6px 12px; font-size: 0.85rem; }
+.rs-btn-quiet { background: #e2e8f0; color: #0f172a; }
+.rs-btn-danger { background: #b91c1c; color: #fff; }
+
+/* ── Sesión en curso ──────────────────────────────────────────────────────── */
+.rs-run { display: flex; flex-direction: column; min-height: 100vh; }
+.rs-staff { background: #0f172a; color: #e2e8f0; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.rs-staff.is-min { padding: 6px 16px; }
+.rs-staff-top { display: flex; align-items: center; gap: 16px; justify-content: space-between; }
+.rs-staff-id { font-size: 0.8rem; color: #94a3b8; }
+.rs-staff-step { font-size: 1.05rem; font-weight: 800; }
+.rs-staff-instr { margin: 0; color: #cbd5e1; font-size: 0.9rem; }
+.rs-clock { font-variant-numeric: tabular-nums; font-size: 1.6rem; font-weight: 800; margin-left: auto; }
+.rs-clock.is-done { color: #fbbf24; }
+.rs-staff .rs-muted, .rs-staff .rs-scale-title { color: #94a3b8; }
+.rs-staff .rs-ok { color: #6ee7b7; }
+.rs-staff-tools { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid #1e293b; padding-top: 8px; }
+.rs-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; flex-wrap: wrap; }
+.rs-num { width: 72px; }
+.rs-wide { flex: 1; min-width: 240px; }
+.rs-nav { display: flex; justify-content: flex-end; gap: 8px; }
+.rs-phys-stage { font-weight: 800; font-size: 1rem; color: #fbbf24; }
+.rs-checklist { display: flex; gap: 8px; flex-wrap: wrap; }
+.rs-check { border: 1px solid #334155; border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; color: #94a3b8; }
+.rs-check.is-due { border-color: #fbbf24; color: #fbbf24; }
+.rs-check.is-done { border-color: #34d399; color: #34d399; }
+
+/* ── Pantalla del niño ────────────────────────────────────────────────────── */
+.rs-child { flex: 1; position: relative; min-height: 60vh; background: #f8fafc; }
+.rs-root > .rs-child { min-height: 100vh; }
+.rs-task { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rs-centered { padding: 24px; }
+.rs-rest { font-size: 2rem; font-weight: 800; color: #475569; }
+.rs-practice-exit { position: absolute; top: 12px; right: 12px; z-index: 5; }
+
+/* n-back: imagen grande, botón grande, sin colores de acierto/error */
+.rs-nback-instr { text-align: center; max-width: 560px; padding: 24px; }
+.rs-nback-level { font-size: 1.1rem; font-weight: 800; color: #64748b; margin-bottom: 12px; }
+.rs-nback-instr p { font-size: 1.8rem; font-weight: 800; color: #1e293b; margin: 0; }
+.rs-nback-stim { font-size: 9rem; line-height: 1; height: 11rem; display: flex; align-items: center; }
+.rs-nback-btn { margin-top: 32px; width: min(80vw, 420px); height: 120px; border-radius: 32px; border: none;
+  background: #60a5fa; color: #fff; font-size: 2rem; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.rs-nback-btn.is-pressed { transform: scale(0.97); background: #3b82f6; }
+
+/* Baja demanda: figuras que aparecen despacio */
+.rs-lowdemand-instr { position: absolute; top: 16px; left: 0; right: 0; text-align: center; font-size: 1.3rem; color: #475569; }
+.rs-shape { position: absolute; width: 64px; height: 64px; animation: rs-fade-in 2s ease-out both; }
+.rs-shape-circulo { border-radius: 50%; }
+.rs-shape-cuadrado { border-radius: 10px; }
+.rs-shape-rombo { border-radius: 8px; transform: rotate(45deg); }
+@keyframes rs-fade-in { from { opacity: 0; } to { opacity: 0.9; } }
+
+/* Sensorial */
+.rs-sensory-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rs-pause-btn { position: absolute; bottom: 24px; right: 24px; z-index: 2; background: #fff; border: 3px solid #1e293b;
+  border-radius: 24px; padding: 18px 28px; font-size: 1.6rem; font-weight: 800; color: #1e293b; cursor: pointer; }
+.rs-sensory-paused { position: absolute; inset: 0; z-index: 3; background: #f1f5f9; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 24px; font-size: 1.8rem; font-weight: 800; color: #334155; }
+
+/* Escalas */
+.rs-scale { margin: 6px 0; }
+.rs-scale-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
+.rs-scale-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rs-scale-btn { min-width: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; color: #0f172a;
+  font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+.rs-scale-btn.is-selected { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.rs-scale-btn.is-big { min-width: 120px; padding: 16px; font-size: 3rem; }
+.rs-scale-help { font-size: 0.7rem; font-weight: 600; }
+.rs-scale-btn.is-big .rs-scale-help { font-size: 0.95rem; }
+.rs-task .rs-scale-title { font-size: 1.6rem; text-align: center; margin-bottom: 16px; color: #1e293b; }
+.rs-sus { background: #fff; color: #0f172a; border-radius: 12px; padding: 12px; }
+.rs-sus-item { margin-bottom: 10px; }
+.rs-sus-text { font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; }
+.rs-sus-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }

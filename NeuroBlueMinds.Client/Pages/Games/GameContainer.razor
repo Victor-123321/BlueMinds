@@ -1,0 +1,75 @@
+@page "/game-container"
+@using System.Text.Json
+@using System.Net.Http.Json
+@using Microsoft.Extensions.Logging
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject ClientLocalizationService Loc
+@inject ILogger<GameContainer> Logger
+@implements IAsyncDisposable
+
+<div class="game-wrapper bg-white rounded-[2rem] shadow-xl overflow-hidden" style="height: 85vh;">
+    @if (!string.IsNullOrEmpty(GameUrl))
+    {
+        <iframe id="gameFrame_@_id" src="@GameUrl"
+                class="w-full h-full border-0"
+                allow="autoplay; microphone"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                @onload="OnIframeLoad"></iframe>
+    }
+</div>
+
+@code {
+    [Parameter] public string GameUrl { get; set; } = "";
+    [Parameter] public string Style   { get; set; } = "";
+
+    private DotNetObjectReference<GameContainer>? _objRef;
+    private readonly string _id = Guid.NewGuid().ToString("N")[..8];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("registerGameResultHandler", _objRef);
+        }
+    }
+
+    private async Task OnIframeLoad()
+    {
+        // Send current locale + strings to the game iframe
+        try
+        {
+            await JS.InvokeVoidAsync("sendLocaleToGameById", $"gameFrame_{_id}", Loc.CurrentLocale);
+        }
+        catch { }
+    }
+
+    [JSInvokable]
+    public async Task OnGameCompleted(string jsonResult)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonResult);
+            var root = doc.RootElement;
+            var gameData = new
+            {
+                GameId       = root.TryGetProperty("gameId",       out var gid) ? gid.GetString()   : "unknown",
+                Score        = root.TryGetProperty("score",        out var s)   ? s.GetInt32()       : 0,
+                Accuracy     = root.TryGetProperty("accuracy",     out var a)   ? a.GetDouble()      : 0.0,
+                ResponseTime = root.TryGetProperty("responseTime", out var r)   ? r.GetDouble()      : 0.0,
+                Style        = !string.IsNullOrEmpty(Style)
+                                   ? Style
+                                   : (root.TryGetProperty("style", out var st) ? st.GetString() : "unknown")
+            };
+            await Http.PostAsJsonAsync("api/dashboard/save-result", gameData);
+        }
+        catch (Exception ex) { Logger.LogError(ex, "Failed to save game result"); }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("unregisterGameResultHandler"); } catch { }
+        _objRef?.Dispose();
+    }
+}

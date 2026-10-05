@@ -1,0 +1,315 @@
+@page "/perfil"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using NeuroBlueMinds.Shared.DTOs
+@inject IAuthService Auth
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@using System.Security.Claims
+
+<PageTitle>Perfil - BlueMinds</PageTitle>
+
+<div class="perfil-page">
+
+    @if (_loading)
+    {
+        <div class="perfil-loading">
+            <div class="spinner"></div>
+            <p>Cargando perfil...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_loadError))
+    {
+        <div class="perfil-loading">
+            <p style="color:#dc2626; font-weight:bold;">@_loadError</p>
+            <button @onclick="ReloadAsync"
+                    style="margin-top:1rem; padding:0.5rem 1.5rem; border-radius:8px; background:#2563eb; color:white; border:none; cursor:pointer;">
+                Reintentar
+            </button>
+        </div>
+    }
+    else if (_user is not null)
+    {
+        <div class="perfil-stats-grid">
+            <div class="perfil-stat-card">
+                <div class="stat-icon">🎮</div>
+                <div class="stat-value">@(_summary?.GamesPlayed ?? 0)</div>
+                <div class="stat-label">Juegos Jugados</div>
+            </div>
+            <div class="perfil-stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-value">@(_summary?.AvgAccuracy ?? 0)%</div>
+                <div class="stat-label">Precisión Promedio</div>
+            </div>
+            <div class="perfil-stat-card">
+                <div class="stat-icon">⭐</div>
+                <div class="stat-value">@(_summary?.BestScore ?? 0)</div>
+                <div class="stat-label">Mejor Puntaje</div>
+            </div>
+        </div>
+
+        <div class="perfil-section-grid">
+
+            <div class="perfil-card">
+                <div class="perfil-card-header">
+                    <h2>Mi Perfil</h2>
+                    @if (!_editing)
+                    {
+                        <button class="edit-btn" @onclick="() => _editing = true">
+                            <span class="material-symbols-outlined">edit</span>
+                        </button>
+                    }
+                </div>
+
+                <div class="perfil-avatar-wrapper">
+                    @if (IsPhotoUrl(_user.Picture))
+                    {
+                        <img src="@_user.Picture" class="perfil-avatar-img" alt="Avatar" />
+                    }
+                    else if (IsEmoji(_avatarEmoji))
+                    {
+                        @* Emoji chosen in the family profile selector *@
+                        <div class="perfil-avatar-initials" style="font-size:2.5rem; background: linear-gradient(135deg,#dbeafe,#ede9fe); overflow:hidden;">
+                            @_avatarEmoji
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="perfil-avatar-initials">
+                            @(_user.Name.Length > 0 ? _user.Name[0].ToString().ToUpper() : "?")
+                        </div>
+                    }
+                </div>
+
+                @if (!_editing)
+                {
+                    <div class="perfil-field">
+                        <span class="field-label">
+                            <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">person</span> Nombre
+                        </span>
+                        <span class="field-value">@_user.Name</span>
+                    </div>
+                    @if (!IsSyntheticEmail(_user.Email))
+                    {
+                        <div class="perfil-field">
+                            <span class="field-label">
+                                <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">mail</span> Correo
+                            </span>
+                            <span class="field-value">@_user.Email</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="perfil-field">
+                            <span class="field-label">
+                                <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">family_restroom</span> Cuenta
+                            </span>
+                            <span class="field-value" style="color:#6366f1;font-weight:600;">Perfil familiar 👨‍👩‍👧</span>
+                        </div>
+                    }
+                    <div class="perfil-field">
+                        <span class="field-label">
+                            <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">cake</span> Nacimiento
+                        </span>
+                        <span class="field-value">@(_user.Birth?.ToString() ?? "No especificado")</span>
+                    </div>
+                    <div class="perfil-field">
+                        <span class="field-label">
+                            <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">public</span> País
+                        </span>
+                        <span class="field-value">@(_user.Country ?? "No especificado")</span>
+                    </div>
+                    <div class="perfil-field">
+                        <span class="field-label">
+                            <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">badge</span> Rol
+                        </span>
+                        <span class="field-value">@RoleLabel(_user.Role)</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="perfil-field">
+                        <label class="field-label">Nombre</label>
+                        <input class="field-input" @bind="_editName" />
+                    </div>
+                    <div class="perfil-field">
+                        <label class="field-label">País</label>
+                        <input class="field-input" @bind="_editCountry" />
+                    </div>
+                    @if (_user.Birth is null)
+                    {
+                        <div class="perfil-field">
+                            <label class="field-label">Fecha de Nacimiento</label>
+                            <input class="field-input" type="date" value="@_editBirth"
+                                   @onchange="@(e => _editBirth = e.Value?.ToString() ?? string.Empty)" />
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_errorMsg))
+                    {
+                        <p class="perfil-error">@_errorMsg</p>
+                    }
+                    <div class="edit-actions">
+                        <button class="save-btn" @onclick="SaveProfile" disabled="@_saving">
+                            @(_saving ? "Guardando..." : "Guardar")
+                        </button>
+                        <button class="cancel-btn" @onclick="CancelEdit" disabled="@_saving">Cancelar</button>
+                    </div>
+                }
+            </div>
+
+            <div class="perfil-info-section">
+                <div class="perfil-card">
+                    <h2 class="perfil-section-title">Información de Cuenta</h2>
+                    <div class="account-item">
+                        <div>
+                            <div class="account-item-label">Estado de la cuenta</div>
+                            <div class="account-item-description">Acceso completo a la plataforma</div>
+                        </div>
+                        <span class="badge badge-active">Activa</span>
+                    </div>
+                    <div class="account-item">
+                        <div>
+                            <div class="account-item-label">Plan</div>
+                            <div class="account-item-description">Acceso a todos los juegos y evaluaciones</div>
+                        </div>
+                        <span class="badge badge-free">Gratuito</span>
+                    </div>
+                    @if (_summary is not null)
+                    {
+                        <div class="account-item">
+                            <div>
+                                <div class="account-item-label">Mejora estimada</div>
+                            </div>
+                            <span class="badge badge-active">
+                                @(_summary.Improvement >= 0 ? "+" : "")@_summary.Improvement%
+                            </span>
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_summary?.AiInsight))
+                {
+                    <div class="perfil-card perfil-ai-card">
+                        <h2 class="perfil-section-title">💡 Análisis IA</h2>
+                        <p class="ai-insight-text">@_summary.AiInsight</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // Uses UserSummaryDTO directly from Shared — no local record that could cause deserialization mismatch
+    private UserProfileDto?  _user;
+    private UserSummaryDTO?  _summary;
+    private bool   _loading   = true;
+    private bool   _saving    = false;
+    private bool   _editing   = false;
+    private string _editName    = "";
+    private string _editCountry = "";
+    private string _editBirth   = "";
+    private string _errorMsg    = "";
+    private string _loadError   = "";
+    // Avatar emoji from the JWT "picture" claim (child sessions only)
+    private string _avatarEmoji = "";
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true; _loadError = "";
+        StateHasChanged();
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var principal = authState.User;
+            var userIdStr = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                         ?? principal.FindFirst("sub")?.Value;
+
+            if (string.IsNullOrEmpty(userIdStr))
+            {
+                Nav.NavigateTo("/login");
+                return;
+            }
+
+            // Read avatar emoji from JWT claims (child sessions store emoji in "picture" claim)
+            var pictureClaim = principal.FindFirst("picture")?.Value ?? "";
+            _avatarEmoji = IsEmoji(pictureClaim) ? pictureClaim : "";
+
+            // Run both calls in parallel
+            var profileTask = Auth.GetProfileAsync();
+            var summaryTask = Http.GetFromJsonAsync<UserSummaryDTO>($"api/dashboard/summary/{userIdStr}");
+            await Task.WhenAll(profileTask, summaryTask);
+
+            _user    = await profileTask;
+            _summary = await summaryTask;
+
+            if (_user is not null)
+            {
+                _editName    = _user.Name;
+                _editCountry = _user.Country ?? "";
+                _editBirth   = _user.Birth?.ToString() ?? "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message.Contains("401") || ex.Message.Contains("Unauthorized")
+                ? "Sesión expirada. Por favor vuelve a iniciar sesión."
+                : $"No se pudo cargar el perfil. ({ex.Message})";
+        }
+        finally { _loading = false; }
+    }
+
+    private void CancelEdit()
+    {
+        _editing = false; _errorMsg = "";
+        if (_user is not null) { _editName = _user.Name; _editCountry = _user.Country ?? ""; }
+    }
+
+    private async Task SaveProfile()
+    {
+        _errorMsg = ""; _saving = true;
+        try
+        {
+            var updated = await Auth.UpdateProfileAsync(new UpdateProfileDto
+            {
+                Name    = string.IsNullOrWhiteSpace(_editName)    ? null : _editName.Trim(),
+                Country = string.IsNullOrWhiteSpace(_editCountry) ? null : _editCountry.Trim(),
+                Birth   = string.IsNullOrWhiteSpace(_editBirth)   ? null : _editBirth
+            });
+            if (updated is not null) { _user = updated; _editing = false; }
+        }
+        catch (Exception ex)
+        {
+            _errorMsg = ex.Message.Contains("400")
+                ? "Datos inválidos. Revisa los campos e intenta de nuevo."
+                : ex.Message;
+        }
+        finally { _saving = false; }
+    }
+
+    private static bool IsPhotoUrl(string? pic) =>
+        !string.IsNullOrEmpty(pic) && (pic.StartsWith("http") || pic.StartsWith("/"));
+
+    private static bool IsEmoji(string? pic)
+    {
+        if (string.IsNullOrWhiteSpace(pic)) return false;
+        if (IsPhotoUrl(pic)) return false;
+        return pic.Length <= 8 && pic.Any(c => c > 127);
+    }
+
+    // Returns true for auto-generated child emails that should not be shown to the user
+    private static bool IsSyntheticEmail(string? email) =>
+        !string.IsNullOrEmpty(email) && email.Contains("@family.blueminds.internal");
+
+    private static string RoleLabel(string? role) => role switch
+    {
+        "parent"     => "Padre / Madre",
+        "specialist" => "Especialista",
+        "admin"      => "Administrador",
+        "child"      => "Niño",
+        _            => role ?? "—"
+    };
+}

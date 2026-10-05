@@ -1,0 +1,187 @@
+@* ModoCalma.razor — Simplified sensory-safe screen for neurodiverse children on overload days.
+   Activated from ChildDashboard. Minimal stimuli: soft colors, no animations, big targets,
+   breathing exercise, simple activity options. *@
+@page "/calma"
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ILogger<ModoCalma> Logger
+
+<PageTitle>Modo Calma · NeuroBlueMinds</PageTitle>
+
+@* Full-screen calm overlay — soft sky blue, zero animations *@
+<div class="min-h-screen flex flex-col items-center justify-center px-6 py-10 gap-8"
+     style="background: linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%); font-family: inherit;">
+
+    @if (_phase == "intro")
+    {
+        @* ── Intro ─────────────────────────────────────────────────────────────── *@
+        <div class="text-center max-w-sm">
+            <p class="text-7xl mb-4">☁️</p>
+            <h1 class="text-3xl font-black text-slate-700 mb-3">Modo Calma</h1>
+            <p class="text-slate-500 text-lg leading-relaxed mb-8">
+                Está bien tomarse un descanso.<br />Aquí todo va despacio.
+            </p>
+            <button @onclick='() => _phase = "breathe"'
+                    class="bg-sky-500 hover:bg-sky-600 text-white font-black text-xl
+                           px-10 py-5 rounded-3xl shadow-lg transition-colors w-full max-w-xs">
+                Empezar 🌬️
+            </button>
+        </div>
+    }
+    else if (_phase == "breathe")
+    {
+        @* ── Breathing exercise ──────────────────────────────────────────────── *@
+        <div class="text-center max-w-sm w-full">
+            <h2 class="text-2xl font-black text-slate-700 mb-2">Respiremos juntos</h2>
+            <p class="text-slate-500 mb-8">@_breatheLabel</p>
+
+            @* Breathing circle — CSS driven, no JS animation (respects data-motion=0) *@
+            <div class="flex justify-center mb-8">
+                <div class="@_circleClass rounded-full flex items-center justify-center
+                            text-5xl shadow-xl transition-all duration-[4000ms] ease-in-out"
+                     style="@_circleStyle">
+                    @_breatheEmoji
+                </div>
+            </div>
+
+            <p class="text-4xl font-black text-sky-600 mb-6">@_countdown</p>
+
+            <div class="flex gap-3 justify-center">
+                <button @onclick="StartBreathing" disabled="@_breathing"
+                        class="bg-sky-500 hover:bg-sky-600 text-white font-black text-base
+                               px-8 py-4 rounded-2xl shadow transition-colors disabled:opacity-50 flex-1">
+                    @(_breathing ? "Respirando…" : "Iniciar respiración")
+                </button>
+                <button @onclick='() => _phase = "activities"'
+                        class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-base
+                               px-6 py-4 rounded-2xl transition-colors">
+                    Saltar →
+                </button>
+            </div>
+        </div>
+    }
+    else if (_phase == "activities")
+    {
+        @* ── Calm activities ─────────────────────────────────────────────────── *@
+        <div class="text-center max-w-sm w-full">
+            <h2 class="text-2xl font-black text-slate-700 mb-2">¿Qué quieres hacer?</h2>
+            <p class="text-slate-500 mb-6">Elige algo que te guste</p>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                @foreach (var act in _activities)
+                {
+                    <button @onclick="() => SelectActivity(act.Key)"
+                            class="@(_selectedActivity == act.Key
+                                    ? "bg-sky-500 text-white border-sky-500"
+                                    : "bg-white text-slate-700 border-slate-200 hover:border-sky-300 hover:bg-sky-50")
+                                   border-2 rounded-3xl p-5 flex flex-col items-center gap-2
+                                   transition-all font-bold text-base shadow-sm">
+                        <span class="text-4xl">@act.Value.Emoji</span>
+                        <span>@act.Value.Label</span>
+                    </button>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(_selectedActivity))
+            {
+                <div class="bg-white rounded-2xl p-5 border-2 border-sky-200 text-left mb-4">
+                    <p class="font-black text-slate-700 mb-1">@_activities[_selectedActivity].Label</p>
+                    <p class="text-slate-500 text-sm leading-relaxed">
+                        @_activities[_selectedActivity].Description
+                    </p>
+                </div>
+            }
+
+            <button @onclick="GoBack"
+                    class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-base
+                           px-8 py-4 rounded-2xl transition-colors w-full">
+                ← Volver al inicio
+            </button>
+        </div>
+    }
+
+    @* ── Exit button — always visible ───────────────────────────────────────── *@
+    <button @onclick="ExitCalma"
+            class="fixed top-4 right-4 bg-white/80 backdrop-blur text-slate-500
+                   font-bold text-sm px-4 py-2 rounded-full border border-slate-200
+                   hover:bg-white hover:text-slate-700 transition-all shadow-sm">
+        Salir ✕
+    </button>
+</div>
+
+@code {
+    private string _phase   = "intro";
+    private string _breatheLabel = "Presiona iniciar";
+    private string _breatheEmoji = "😌";
+    private string _circleClass  = "w-40 h-40 bg-sky-200";
+    private string _circleStyle  = "";
+    private string _countdown    = "";
+    private bool   _breathing    = false;
+    private string _selectedActivity = "";
+
+    private readonly Dictionary<string, (string Emoji, string Label, string Description)> _activities = new()
+    {
+        ["dibujar"]   = ("🎨", "Dibujar",       "Abre una hoja en blanco y dibuja lo que sientas. No tiene que ser perfecto."),
+        ["musica"]    = ("🎵", "Escuchar",       "Pon tu música favorita y cierra los ojos. Solo escucha."),
+        ["leer"]      = ("📚", "Leer",           "Lee unas páginas de tu libro favorito o un cuento corto."),
+        ["caminar"]   = ("🚶", "Caminar",        "Da una vuelta corta por tu casa o jardín. Observa lo que te rodea."),
+        ["colorear"]  = ("🖍️",  "Colorear",      "Colorea algo con tus colores favoritos. Sin prisa, sin reglas."),
+        ["descansar"] = ("💤", "Descansar",      "Túmbate cómodamente y cierra los ojos 5 minutos. Está bien descansar."),
+    };
+
+    private async Task StartBreathing()
+    {
+        _breathing = true;
+        var cycles = 4; // 4 full breath cycles
+        try
+        {
+            for (int i = 0; i < cycles; i++)
+            {
+                // Inhale 4s
+                _breatheLabel = "Inhala lentamente…";
+                _breatheEmoji = "🌬️";
+                _circleClass  = "w-48 h-48 bg-sky-300";
+                for (int t = 4; t > 0; t--) { _countdown = t.ToString(); StateHasChanged(); await Task.Delay(1000); }
+
+                // Hold 4s
+                _breatheLabel = "Mantén el aire…";
+                _breatheEmoji = "😮‍💨";
+                _circleClass  = "w-48 h-48 bg-teal-200";
+                for (int t = 4; t > 0; t--) { _countdown = t.ToString(); StateHasChanged(); await Task.Delay(1000); }
+
+                // Exhale 4s
+                _breatheLabel = "Exhala despacio…";
+                _breatheEmoji = "😌";
+                _circleClass  = "w-40 h-40 bg-sky-100";
+                for (int t = 4; t > 0; t--) { _countdown = t.ToString(); StateHasChanged(); await Task.Delay(1000); }
+
+                // Rest 2s
+                _breatheLabel = "Descansa…";
+                _countdown = "";
+                _circleClass = "w-40 h-40 bg-slate-100";
+                StateHasChanged();
+                await Task.Delay(2000);
+            }
+
+            _breatheLabel = "¡Muy bien! Respiraste profundo 4 veces.";
+            _breatheEmoji = "✨";
+            _countdown    = "";
+            _circleClass  = "w-44 h-44 bg-emerald-200";
+            StateHasChanged();
+            await Task.Delay(2000);
+            _phase = "activities";
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "[ModoCalma] Breathing interrupted."); }
+        finally { _breathing = false; }
+    }
+
+    private void SelectActivity(string key) => _selectedActivity = key;
+
+    private async Task ExitCalma()
+    {
+        try { await JS.InvokeVoidAsync("eval", "history.back()"); }
+        catch { Nav.NavigateTo("/"); }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/");
+}

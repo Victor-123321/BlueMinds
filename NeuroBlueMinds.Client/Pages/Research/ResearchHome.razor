@@ -1,0 +1,221 @@
+@* Módulo de sesión en tableta — inicio (Protocolo C&W-NM §8.6.6 "Tableta con plataforma BlueMinds").
+   Crear o retomar sesiones, exportar CSV en formato largo, calibrar el audio del bloque
+   sensorial y practicar las tareas en V1 (familiarización, sin registro). *@
+@page "/investigacion"
+@layout ResearchLayout
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "specialist,admin")]
+@using System.Text.RegularExpressions
+@using NeuroBlueMinds.Client.Research
+@using NeuroBlueMinds.Client.Components.Research
+@inject ResearchStore Store
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Investigación — BlueMinds</PageTitle>
+
+@if (_practica != TareaNino.Ninguna)
+{
+    <div class="rs-child">
+        @if (_practica == TareaNino.NBack)
+        {
+            <NBackTask SegundosPorNivel="30" />
+        }
+        else if (_practica == TareaNino.Sensorial)
+        {
+            <SensoryBlock SegundosPorNivel="20" />
+        }
+        else
+        {
+            <LowDemandTask />
+        }
+        <button class="rs-btn rs-btn-quiet rs-practice-exit" @onclick="() => _practica = TareaNino.Ninguna">Terminar práctica</button>
+    </div>
+}
+else
+{
+<div class="rs-page">
+    <header class="rs-header">
+        <h1>Sesión en tableta · Protocolo C&amp;W-NM</h1>
+        <p class="rs-muted">Los datos se guardan solo en esta tableta hasta que los exportes. No uses nombres: solo el código seudonimizado.</p>
+        <a class="rs-link" href="/dashboard">Volver a BlueMinds</a> ·
+        <a class="rs-link" href="/investigacion/diario">Diario de episodios (módulo ecológico, para familias)</a>
+    </header>
+
+    <section class="rs-card">
+        <h2>Nueva sesión</h2>
+        <div class="rs-form">
+            <label>Código del participante
+                <input @bind="_nuevo.NinoId" placeholder="NB-017" maxlength="6" />
+            </label>
+            <label>Sesión
+                <input @bind="_nuevo.SesionId" placeholder="S02" maxlength="3" />
+            </label>
+            <label>Visita
+                <select @bind="_nuevo.Visita">
+                    <option value="V2">V2 · sesión experimental</option>
+                    <option value="V3">V3 · retest</option>
+                </select>
+            </label>
+            <label>Orden de cargas (lista sellada de V1)
+                <select @bind="_nuevo.Orden">
+                    <option value="AB">AB · cognitiva → sensorial</option>
+                    <option value="BA">BA · sensorial → cognitiva</option>
+                </select>
+            </label>
+            <label>Versión de firmware del C&amp;W
+                <input @bind="_nuevo.VersionFirmware" placeholder="fw-2.1.3" />
+            </label>
+        </div>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="rs-error">@_error</p>
+        }
+        <button class="rs-btn" @onclick="Crear">Crear e iniciar</button>
+    </section>
+
+    <section class="rs-card">
+        <h2>Sesiones en esta tableta</h2>
+        @if (_sesiones.Count == 0)
+        {
+            <p class="rs-muted">Todavía no hay sesiones.</p>
+        }
+        else
+        {
+            <table class="rs-table">
+                <thead><tr><th>Participante</th><th>Sesión</th><th>Visita</th><th>Creada (UTC)</th><th>Estado</th><th>Filas</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var s in _sesiones)
+                    {
+                        <tr>
+                            <td>@s.NinoId</td><td>@s.SesionId</td><td>@s.Visita</td>
+                            <td>@s.CreadaUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@(s.CerradaUtc.HasValue ? "Cerrada" : "En curso")</td>
+                            <td>@s.Filas.Count</td>
+                            <td class="rs-actions">
+                                @if (!s.CerradaUtc.HasValue)
+                                {
+                                    <button class="rs-btn rs-btn-small" @onclick='() => Nav.NavigateTo($"/investigacion/sesion/{s.Clave}")'>Continuar</button>
+                                }
+                                <button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="() => Store.DescargarAsync(s)">Exportar</button>
+                                <button class="rs-btn rs-btn-small rs-btn-danger" @onclick="() => Eliminar(s)">Eliminar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <section class="rs-card">
+        <h2>Calibración del bloque sensorial</h2>
+        <p class="rs-muted">Con el sonómetro clase 2 a la altura del oído del niño y los altavoces a 1 m, ajusta cada nivel hasta 55, 62 y 68–70 dB(A). Se guarda en esta tableta.</p>
+        @for (var i = 0; i < 3; i++)
+        {
+            var n = i;
+            <div class="rs-cal-row">
+                <span class="rs-cal-label">Nivel @(n + 1) · @(Objetivos[n])</span>
+                <input type="range" min="0" max="1" step="0.01" value="@_ganancias[n]" @oninput="e => CambiarGanancia(n, e)" />
+                <span class="rs-cal-value">@_ganancias[n].ToString("0.00")</span>
+                @if (_calibrando == n)
+                {
+                    <button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="DetenerCalibracion">Detener</button>
+                }
+                else
+                {
+                    <button class="rs-btn rs-btn-small rs-btn-quiet" @onclick="() => Probar(n)">Probar</button>
+                }
+            </div>
+        }
+        <button class="rs-btn rs-btn-quiet" @onclick="GuardarGanancias">Guardar calibración</button>
+        @if (_calGuardada) { <span class="rs-ok">Guardada</span> }
+    </section>
+
+    <section class="rs-card">
+        <h2>Práctica de familiarización (V1)</h2>
+        <p class="rs-muted">Versiones cortas de cada tarea. No se registra nada.</p>
+        <div class="rs-actions">
+            <button class="rs-btn rs-btn-quiet" @onclick="() => _practica = TareaNino.NBack">Memoria (n-back)</button>
+            <button class="rs-btn rs-btn-quiet" @onclick="() => _practica = TareaNino.Sensorial">Sensorial</button>
+            <button class="rs-btn rs-btn-quiet" @onclick="() => _practica = TareaNino.BajaDemanda">Figuras de colores</button>
+        </div>
+    </section>
+</div>
+}
+
+@code {
+    private static readonly string[] Objetivos = { "55 dB(A)", "62 dB(A)", "68–70 dB(A)" };
+    private static readonly Regex CodigoNino   = new(@"^NB-\d{3}$");
+    private static readonly Regex CodigoSesion = new(@"^S\d{2}$");
+
+    private ResearchSession _nuevo = new();
+    private List<ResearchSession> _sesiones = new();
+    private double[] _ganancias = (double[])ResearchStore.GananciasPorDefecto.Clone();
+    private int? _calibrando;
+    private bool _calGuardada;
+    private string _error = "";
+    private TareaNino _practica = TareaNino.Ninguna;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ganancias = await Store.GananciasAsync();
+        await Recargar();
+    }
+
+    private async Task Recargar()
+    {
+        var lista = new List<ResearchSession>();
+        foreach (var clave in await Store.ListarAsync())
+            if (await Store.CargarAsync(clave) is { } s) lista.Add(s);
+        _sesiones = lista.OrderByDescending(s => s.CreadaUtc).ToList();
+    }
+
+    private async Task Crear()
+    {
+        _nuevo.NinoId   = _nuevo.NinoId.Trim().ToUpperInvariant();
+        _nuevo.SesionId = _nuevo.SesionId.Trim().ToUpperInvariant();
+        if (!CodigoNino.IsMatch(_nuevo.NinoId))   { _error = "El código del participante debe tener la forma NB-017."; return; }
+        if (!CodigoSesion.IsMatch(_nuevo.SesionId)) { _error = "La sesión debe tener la forma S02."; return; }
+        if (_sesiones.Any(s => s.Clave == _nuevo.Clave)) { _error = "Ya existe esa sesión en esta tableta."; return; }
+
+        _nuevo.CreadaUtc = DateTime.UtcNow;
+        await Store.GuardarAsync(_nuevo);
+        Nav.NavigateTo($"/investigacion/sesion/{_nuevo.Clave}");
+    }
+
+    private async Task Eliminar(ResearchSession s)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm",
+            $"¿Eliminar la sesión {s.Clave} de esta tableta? Exporta antes si no lo has hecho; no se puede deshacer.");
+        if (!ok) return;
+        await Store.EliminarAsync(s.Clave);
+        await Recargar();
+    }
+
+    private async Task CambiarGanancia(int n, ChangeEventArgs e)
+    {
+        if (!double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float,
+                             System.Globalization.CultureInfo.InvariantCulture, out var g)) return;
+        _ganancias[n] = g;
+        _calGuardada = false;
+        if (_calibrando == n) await JS.InvokeVoidAsync("nbmResearch.calibrateGain", g);
+    }
+
+    private async Task Probar(int n)
+    {
+        _calibrando = n;
+        await JS.InvokeVoidAsync("nbmResearch.calibrateStart", n + 1, _ganancias[n]);
+    }
+
+    private async Task DetenerCalibracion()
+    {
+        _calibrando = null;
+        await JS.InvokeVoidAsync("nbmResearch.calibrateStop");
+    }
+
+    private async Task GuardarGanancias()
+    {
+        await Store.GuardarGananciasAsync(_ganancias);
+        _calGuardada = true;
+    }
+}

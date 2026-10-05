@@ -1,0 +1,82 @@
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body { font-family: 'Nunito', sans-serif; background-color: #ffffff; min-height:100vh; padding:20px 0 40px; }
+
+/* Header */
+header { background-color:white; box-shadow: 0 4px 12px rgba(0,102,204,0.1); padding:15px 0; position:sticky; top:0; z-index:100; }
+
+.header-container { max-width:1200px; margin:0 auto; padding:0 20px; display:flex; justify-content:space-between; align-items:center; }
+.logo { display:flex; align-items:center; gap:10px; font-size:28px; font-weight:800; color:#0066CC; text-decoration:none; }
+.logo img { width:40px; height:40px; }
+.nav-center { display:flex; gap:30px; list-style:none; }
+.nav-center a { text-decoration:none; color:#3c3c3c; font-weight:600; transition:color 0.3s ease; }
+.nav-center a:hover { color:#0066CC; }
+.user-menu { display:flex; align-items:center; gap:15px; }
+.user-name { color:#3c3c3c; font-weight:600; cursor:pointer; transition:color 0.3s ease; }
+.user-name:hover { color:#0066CC; }
+
+.nav-btn, .logout-btn { display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:8px; background:none; border:none; cursor:pointer; font-size:18px; transition: all 0.3s ease; text-decoration:none; color:#89f0f1; }
+.nav-btn:hover, .logout-btn:hover { background-color:#F0F8FF; color:#00B4D8; }
+.logout-btn { color:#ef4444; }
+.logout-btn:hover { background-color:#FEE2E2; }
+
+/* Main Container */
+.container { max-width:1200px; margin:0 auto; padding:0 20px; }
+
+/* Profile Section */
+.profile-section { display:grid; grid-template-columns: 350px 1fr; gap:30px; margin-top:30px; }
+.profile-card { background:white; border-radius:16px; padding:30px; box-shadow: 0 8px 25px rgba(0,102,204,0.12); height: fit-content; }
+.profile-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:25px; }
+.profile-header h2 { color:#3c3c3c; font-size:22px; }
+.edit-btn { background:none; border:none; color:#0066CC; cursor:pointer; font-size:18px; transition:color 0.3s ease; }
+.edit-btn:hover { color:#00B4D8; }
+.avatar { width:100px; height:100px; border-radius:50%; background: linear-gradient(135deg, #0066CC 0%, #00B4D8 100%); display:flex; align-items:center; justify-content:center; color:white; font-size:48px; font-weight:700; margin:0 auto 20px; }
+.profile-field { margin-bottom:20px; }
+.field-label { display:flex; align-items:center; gap:8px; font-weight:600; color:#3c3c3c; margin-bottom:6px; font-size:14px; }
+.field-label i { color:#89f0f1; font-size:16px; }
+.field-value { color:#666; font-size:15px; padding-left:24px; }
+.field-input { width:100%; padding:10px 12px; border:2px solid #e5e7eb; border-radius:8px; font-family:'Nunito', sans-serif; font-size:15px; margin-top:5px; }
+.field-input:focus { outline:none; border-color:#0066CC; box-shadow: 0 0 0 3px rgba(0,102,204,0.1); }
+
+.edit-actions { display:flex; gap:10px; margin-top:25px; }
+.edit-actions button { flex:1; padding:10px; border:none; border-radius:8px; font-weight:600; cursor:pointer; transition:all 0.3s ease; font-size:14px; }
+.edit-actions .save-btn { background: linear-gradient(135deg,#0066CC 0%, #00B4D8 100%); color:white; }
+.edit-actions .save-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,102,204,0.3); }
+.edit-actions .cancel-btn { background: #e5e7eb; color:#3c3c3c; }
+.edit-actions .cancel-btn:hover { background: #d1d5db; }
+
+.stats-grid { display:grid; grid-template-columns: repeat(3,1fr); gap:20px; margin-bottom:30px; }
+.stat-card { background:white; border-radius:16px; padding:25px; box-shadow: 0 8px 25px rgba(0,102,204,0.12); text-align:center; transition:all 0.3s ease; border-top:4px solid #0066CC; }
+.stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,102,204,0.2); }
+.stat-icon { font-size:36px; margin-bottom:10px; }
+.stat-value { font-size:28px; font-weight:800; color:#0066CC; margin-bottom:5px; }
+.stat-label { font-size:14px; color:#999; font-weight:600; }
+
+.achievements-section { background:white; border-radius:16px; padding:30px; box-shadow: 0 8px 25px rgba(0,102,204,0.12); }
+.section-title { font-size:22px; font-weight:700; color:#3c3c3c; margin-bottom:8px; }
+.section-subtitle { font-size:14px; color:#999; margin-bottom:25px; }
+.achievements-grid { display:grid; grid-template-columns: repeat(2,1fr); gap:16px; }
+.achievement-card { padding:16px; border-radius:12px; border:2px solid #e5e7eb; transition:all 0.3s ease; }
+.achievement-card.earned { background:#F0F8FF; border-color:#00B4D8; }
+.achievement-card.earned:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,102,204,0.15); }
+.achievement-card.locked { background:#f9fafb; border-color:#d1d5db; opacity:0.6; }
+.achievement-header { display:flex; align-items:flex-start; gap:12px; margin-bottom:10px; }
+.achievement-icon { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px; }
+.achievement-card.earned .achievement-icon { background: linear-gradient(135deg,#0066CC 0%, #00B4D8 100%); color:white; }
+.achievement-card.locked .achievement-icon { background:#e5e7eb; color:#999; }
+.achievement-info { flex:1; }
+.achievement-name { font-weight:600; color:#3c3c3c; font-size:14px; margin-bottom:2px; }
+.achievement-description { font-size:12px; color:#999; }
+.achievement-badge { display:inline-block; background: linear-gradient(135deg,#0066CC 0%, #00B4D8 100%); color:white; padding:4px 10px; border-radius:12px; font-size:11px; font-weight:600; margin-top:8px; }
+
+.account-info-section { background:white; border-radius:16px; padding:30px; box-shadow: 0 8px 25px rgba(0,102,204,0.12); margin-top:30px; }
+.account-item { display:flex; justify-content:space-between; align-items:center; padding:16px 0; border-bottom:1px solid #e5e7eb; }
+.account-item:last-child { border-bottom:none; }
+.account-item-label { color:#3c3c3c; font-weight:600; font-size:14px; }
+.account-item-description { color:#999; font-size:12px; margin-top:4px; }
+.account-item-value { display:flex; align-items:center; gap:8px; }
+.badge { padding:6px 12px; border-radius:12px; font-size:12px; font-weight:600; }
+.badge.active { background:#D4F1FF; color:#0066CC; border:1px solid #00B4D8; }
+.badge.free { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; }
+
+@media (max-width:768px) { .profile-section { grid-template-columns:1fr; } .nav-center { display:none; } .stats-grid { grid-template-columns:1fr; } .achievements-grid { grid-template-columns:1fr; } }

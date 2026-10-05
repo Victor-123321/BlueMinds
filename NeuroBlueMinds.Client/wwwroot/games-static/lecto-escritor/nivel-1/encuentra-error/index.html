@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es" id="nbm-game">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encuentra el Error Gramatical - Neuro Play World</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="back-button">
+                <button onclick="goToMainPage()">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+            </div>
+            <h1 class="game-title">Encuentra el Error</h1>
+            <div class="game-info">
+                <span id="score-display" data-i18n-suffix=" puntos">0</span>
+                <span class="difficulty-badge" id="difficulty-badge">Normal</span>
+            </div>
+        </header>
+
+        <main class="game-content">
+            <div class="progress-card">
+                <div class="progress-header">
+                    <span>Ronda <span id="current-round">1</span> de <span id="total-rounds">5</span></span>
+                    <span id="score">0 puntos</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+
+            <div class="error-card">
+                <h2>¿Cuál es el error?</h2>
+                
+                <div class="sentence-section">
+                    <div class="sentence-label">Lee la oración:</div>
+                    <div class="sentence-display">
+                        <span id="sentence-text"></span>
+                    </div>
+                </div>
+
+                <div id="error-hint" class="error-hint hidden">
+                    <i class="fas fa-lightbulb"></i>
+                    <span id="hint-text"></span>
+                </div>
+
+                <div class="correction-section">
+                    <div class="correction-label">Selecciona la palabra correcta:</div>
+                    <div id="options-container" class="options-container"></div>
+                </div>
+
+                <div class="word-type-badge" id="word-type-badge"></div>
+
+                <div class="action-controls">
+                    <button id="hint-button" class="action-button hint" title="Ver pista">
+                        <i class="fas fa-lightbulb"></i> Pista
+                    </button>
+                    <button id="check-button" class="action-button primary">
+                        <i class="fas fa-check"></i> Verificar
+                    </button>
+                    <button id="reset-button" class="action-button blue">
+                        <i class="fas fa-redo"></i> Reiniciar
+                    </button>
+                </div>
+
+                <div id="feedback" class="feedback hidden"></div>
+
+                <div id="explanation" class="explanation hidden">
+                    <h3>Explicación</h3>
+                    <p id="explanation-text"></p>
+                </div>
+            </div>
+
+            <div class="instructions-card">
+                <p>💡 <span style="font-weight: 700;">Tip:</span> Lee con cuidado la oración. Busca qué palabra está mal y cómo debería ser. ¡Usa la pista si lo necesitas!</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+<script>
+// Apply i18n strings to data-i18n elements
+function applyLocale() {
+  if (!_s || Object.keys(_s).length === 0) return;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var k = el.getAttribute('data-i18n');
+    if (_s[k]) el.textContent = _s[k];
+  });
+}
+</script>
+</body>
+</html>

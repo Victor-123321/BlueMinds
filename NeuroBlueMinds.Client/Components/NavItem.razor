@@ -1,0 +1,20 @@
+@* NeuroBlueMinds.Client/Components/NavItem.razor
+   Single nav link — highlights when active *@
+@namespace NeuroBlueMinds.Client.Components
+
+@inject NavigationManager Nav
+
+<a href="@Href"
+   class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm transition-all @(IsActive ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:text-blue-600 hover:bg-slate-50")">
+    <span class="material-symbols-outlined" style="font-size:18px;">@Icon</span>
+    <span class="hidden md:inline">@Label</span>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Href  { get; set; } = "";
+    [Parameter, EditorRequired] public string Icon  { get; set; } = "";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+
+    private bool IsActive => Nav.Uri.TrimEnd('/').EndsWith(Href.TrimEnd('/'), 
+                                StringComparison.OrdinalIgnoreCase);
+}
